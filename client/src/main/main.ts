@@ -1,7 +1,17 @@
 import '../style.css';
 import './home.css';
 import constants from '@shared/constants.json';
-import { ApiError, createRoom, getRoom, isRoomFull, updateMe, type Profile } from '../shared/api';
+import {
+  ApiError,
+  createRoom,
+  getLeaderboard,
+  getPlayerStats,
+  getRoom,
+  isRoomFull,
+  updateMe,
+  type LeaderboardKind,
+  type Profile,
+} from '../shared/api';
 import { isRoomCode } from '../shared/roomCode';
 import { modeName } from '../shared/roomText';
 import { ensureSession, type Session } from '../shared/session';
@@ -155,12 +165,85 @@ function setupRooms(session: Session): void {
   joinButton.disabled = false;
 }
 
+// Which column each ranking is sorted by, counting from the left.
+const SORTED_COLUMN: Record<LeaderboardKind, number> = { kd: 5, kills: 3, wins: 6 };
+
+function setupLeaderboard(myId: string | null): void {
+  const body = element('leaderboard-body');
+  const note = element('leaderboard-note');
+  const tabs = [...element('leaderboard-tabs').querySelectorAll<HTMLButtonElement>('button')];
+
+  async function show(by: LeaderboardKind): Promise<void> {
+    for (const tab of tabs) tab.setAttribute('aria-pressed', String(tab.dataset.by === by));
+    try {
+      const board = await getLeaderboard(by);
+      body.replaceChildren(
+        ...board.players.map((player, index) => {
+          const row = document.createElement('tr');
+          row.classList.toggle('me', player.id === myId);
+          const cells = [
+            index + 1,
+            player.name,
+            player.matches,
+            player.kills,
+            player.deaths,
+            player.kd.toFixed(2),
+            player.wins,
+          ];
+          cells.forEach((value, column) => {
+            const cell = row.insertCell();
+            cell.textContent = String(value);
+            if (column === 1) cell.style.color = player.color;
+            cell.classList.toggle('sorted', column === SORTED_COLUMN[by]);
+          });
+          return row;
+        }),
+      );
+      if (board.players.length === 0) {
+        note.textContent =
+          by === 'kd'
+            ? `Пока никто не набрал ${board.minKills} убийств — столько нужно для рейтинга по K/D.`
+            : 'Пока никто не сыграл ни одного матча.';
+      } else {
+        note.textContent =
+          by === 'kd' ? `В рейтинге по K/D — игроки от ${board.minKills} убийств.` : '';
+      }
+    } catch {
+      body.replaceChildren();
+      note.textContent = SERVER_DOWN;
+    }
+  }
+
+  for (const tab of tabs) {
+    tab.addEventListener('click', () => void show(tab.dataset.by as LeaderboardKind));
+  }
+  void show('kd');
+}
+
+async function showMyStats(session: Session): Promise<void> {
+  const stats = await getPlayerStats(session.profile.id);
+  element('my-stats').textContent =
+    stats.matches === 0
+      ? 'Вы ещё не сыграли ни одного матча.'
+      : [
+          `Вы: матчей ${stats.matches}`,
+          `побед ${stats.wins}`,
+          `убийств ${stats.kills}`,
+          `смертей ${stats.deaths}`,
+          `K/D ${stats.kd.toFixed(2)}`,
+          `точность ${Math.round(stats.accuracy * 100)} %`,
+        ].join(' · ');
+}
+
 ensureSession()
   .then((session) => {
     setupProfile(session);
     setupRooms(session);
+    setupLeaderboard(session.profile.id);
+    showMyStats(session).catch(() => undefined);
   })
   .catch((error: unknown) => {
     console.error(error);
     status.textContent = SERVER_DOWN;
+    setupLeaderboard(null);
   });

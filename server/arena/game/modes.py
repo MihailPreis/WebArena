@@ -26,6 +26,9 @@ class GameMode(Protocol):
     def ranking(self, members: Sequence[Member]) -> list[Member]:
         """Members from first place to last."""
 
+    def winner(self, members: Sequence[Member]) -> Member | None:
+        """Who won the match, or None for a draw."""
+
     def pick_spawn(self, game_map: GameMap, member: Member, others: Sequence[Member]) -> Spawn:
         """Where `member` should appear; `others` are the living players around."""
 
@@ -42,6 +45,17 @@ class Deathmatch:
 
     def ranking(self, members: Sequence[Member]) -> list[Member]:
         return sorted(members, key=lambda member: (-member.kills, member.deaths, member.joined))
+
+    def winner(self, members: Sequence[Member]) -> Member | None:
+        ranked = self.ranking(members)
+        if not ranked or ranked[0].kills == 0:
+            return None
+        first = ranked[0]
+        level = len(ranked) > 1 and (ranked[1].kills, ranked[1].deaths) == (
+            first.kills,
+            first.deaths,
+        )
+        return None if level else first
 
     def pick_spawn(self, game_map: GameMap, member: Member, others: Sequence[Member]) -> Spawn:
         # As far as possible from everyone else, since everyone is an opponent.

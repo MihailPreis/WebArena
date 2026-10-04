@@ -23,12 +23,12 @@ async def create_player(db: Database, name: str, color: str) -> tuple[Player, st
     player = Player(id=secrets.token_hex(8), name=name, color=color)
     token = secrets.token_urlsafe(32)
     now = int(time.time())
-    await db.conn.execute(
-        "INSERT INTO players (id, token_hash, name, color, created_at, last_seen_at)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
-        (player.id, hash_token(token), name, color, now, now),
-    )
-    await db.conn.commit()
+    async with db.transaction() as conn:
+        await conn.execute(
+            "INSERT INTO players (id, token_hash, name, color, created_at, last_seen_at)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (player.id, hash_token(token), name, color, now, now),
+        )
     return player, token
 
 
@@ -44,16 +44,16 @@ async def update_player(
     db: Database, player: Player, name: str | None, color: str | None
 ) -> Player:
     updated = Player(id=player.id, name=name or player.name, color=color or player.color)
-    await db.conn.execute(
-        "UPDATE players SET name = ?, color = ? WHERE id = ?",
-        (updated.name, updated.color, updated.id),
-    )
-    await db.conn.commit()
+    async with db.transaction() as conn:
+        await conn.execute(
+            "UPDATE players SET name = ?, color = ? WHERE id = ?",
+            (updated.name, updated.color, updated.id),
+        )
     return updated
 
 
 async def touch_player(db: Database, player_id: str) -> None:
-    await db.conn.execute(
-        "UPDATE players SET last_seen_at = ? WHERE id = ?", (int(time.time()), player_id)
-    )
-    await db.conn.commit()
+    async with db.transaction() as conn:
+        await conn.execute(
+            "UPDATE players SET last_seen_at = ? WHERE id = ?", (int(time.time()), player_id)
+        )

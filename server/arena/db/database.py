@@ -1,3 +1,6 @@
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import aiosqlite
@@ -11,6 +14,7 @@ class Database:
     def __init__(self, path: Path) -> None:
         self.path = path
         self._conn: aiosqlite.Connection | None = None
+        self._write_lock = asyncio.Lock()
 
     @property
     def conn(self) -> aiosqlite.Connection:
@@ -24,7 +28,24 @@ class Database:
         self._conn.row_factory = aiosqlite.Row
         await self._conn.execute("PRAGMA journal_mode = WAL")
         await self._conn.execute("PRAGMA foreign_keys = ON")
+        # Wait instead of failing if another process (a backup, a shell) holds the file.
+        await self._conn.execute("PRAGMA busy_timeout = 5000")
         await self._migrate()
+
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator[aiosqlite.Connection]:
+        """Runs writes as one unit: committed together, or rolled back together on error.
+
+        All writes go through here. They share one connection, so without the lock
+        one coroutine's commit could cut another's transaction in half.
+        """
+        async with self._write_lock:
+            try:
+                yield self.conn
+            except BaseException:
+                await self.conn.rollback()
+                raise
+            await self.conn.commit()
 
     async def close(self) -> None:
         if self._conn is not None:

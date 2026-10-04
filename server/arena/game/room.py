@@ -3,6 +3,7 @@ import dataclasses
 import logging
 import math
 import random
+import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ from arena.game.combat import Target, aim_direction, eye_position, trace_shot
 from arena.game.map import GameMap, Vec3
 from arena.game.modes import MODES
 from arena.game.movement import TICK_DT, InputCmd, PlayerState, create_player, step_player
+from arena.game.results import MatchResult, PlayerResult
 from arena.game.weapon import WeaponState, step_weapon
 from arena.net.protocol import PROTOCOL_VERSION, CloseCode, encode, state_json
 from arena.shared import CONSTANTS
@@ -90,6 +92,13 @@ class Member:
     """Order of arrival; the longest-present player inherits the host role."""
     ping: int = 0
     """Round-trip time in milliseconds, as measured and reported by the client."""
+    # Counted during a match only and saved with its result.
+    headshots: int = 0
+    shots: int = 0
+    hits: int = 0
+    damage_dealt: int = 0
+    damage_taken: int = 0
+    playtime_s: float = 0.0
     hp: int = MAX_HEALTH
     alive: bool = True
     weapon: WeaponState = field(default_factory=WeaponState)
@@ -114,6 +123,7 @@ class Room:
         settings: MatchSettings,
         game_map: GameMap,
         clock: Callable[[], float],
+        on_match_end: Callable[[MatchResult], None] | None = None,
     ) -> None:
         self.code = code
         self.host_id = host_id
@@ -125,6 +135,8 @@ class Room:
         self.state = WAITING
         self.state_ends_at: float | None = None
         self._arrivals = 0
+        self._on_match_end = on_match_end
+        self._match_started_at = 0
         # Set while nobody is connected; the registry drops the room once this is old enough.
         self.empty_since: float | None = clock()
         self._clock = clock
@@ -245,6 +257,8 @@ class Room:
                     self._fire(member, cmd, queued.render_time)
 
         for member in connected:
+            if self.state == MATCH:
+                member.playtime_s += SNAPSHOT_INTERVAL
             if member.alive:
                 member.history.append((now, member.state.pos, member.state.crouched))
                 while member.history[0][0] < now - HISTORY_S:
@@ -306,7 +320,10 @@ class Room:
 
     def _fire(self, shooter: Member, cmd: InputCmd, render_time: float) -> None:
         now = self.time
+        counted = self.state == MATCH
         shooter.protected_until = 0.0  # Attacking gives up spawn protection.
+        if counted:
+            shooter.shots += 1
         # Judge the shot against what the shooter saw: other players are drawn slightly
         # in the past, so rewind them to that moment, within a bounded window.
         seen_at = min(max(render_time, now - MAX_REWIND_S), now)
@@ -333,6 +350,11 @@ class Room:
         if now < target.protected_until:
             return
         damage = round(DAMAGE * HEAD_MULTIPLIER) if result.head else DAMAGE
+        if counted:
+            shooter.hits += 1
+            shooter.headshots += result.head
+            shooter.damage_dealt += min(damage, target.hp)
+            target.damage_taken += min(damage, target.hp)
         target.hp = max(target.hp - damage, 0)
         hit = encode(
             {
@@ -352,7 +374,7 @@ class Room:
             target.alive = False
             target.respawn_at = now + RESPAWN_DELAY_S
             target.history.clear()
-            if self.state == MATCH:
+            if counted:
                 self.mode.record_kill(shooter, target)
             self._broadcast(
                 {
@@ -371,9 +393,7 @@ class Room:
         elif self.state == MATCH:
             timed_out = self.state_ends_at is not None and now >= self.state_ends_at
             if timed_out or self.mode.is_won(list(self.members.values()), self.settings):
-                self.state = RESULTS
-                self.state_ends_at = now + RESULTS_S
-                self._send_room_state()
+                self.finish_match()
         elif self.state_ends_at is not None and now >= self.state_ends_at:
             if len(self.connected) >= MIN_PLAYERS:
                 self._start_match(now)
@@ -385,8 +405,48 @@ class Room:
                     self._respawn(member)
                 self._send_room_state()
 
+    def finish_match(self) -> None:
+        """Ends the running match, if any, and reports its result. Also used on shutdown."""
+        if self.state != MATCH:
+            return
+        self.state = RESULTS
+        self.state_ends_at = self.time + RESULTS_S
+        self._send_room_state()
+        if self._on_match_end is None:
+            return
+        members = list(self.members.values())
+        winner = self.mode.winner(members)
+        self._on_match_end(
+            MatchResult(
+                room_code=self.code,
+                map=self.map.name,
+                mode=self.settings.mode,
+                kill_limit=self.settings.kill_limit,
+                time_limit_s=self.settings.time_limit_min * 60,
+                started_at=self._match_started_at,
+                ended_at=int(time.time()),
+                players=tuple(
+                    PlayerResult(
+                        player_id=member.player.id,
+                        kills=member.kills,
+                        deaths=member.deaths,
+                        headshots=member.headshots,
+                        shots=member.shots,
+                        hits=member.hits,
+                        damage_dealt=member.damage_dealt,
+                        damage_taken=member.damage_taken,
+                        playtime_s=round(member.playtime_s),
+                        place=place,
+                        won=member is winner,
+                    )
+                    for place, member in enumerate(self.mode.ranking(members), start=1)
+                ),
+            )
+        )
+
     def _start_match(self, now: float) -> None:
         self._reset_scores()
+        self._match_started_at = int(time.time())
         self.state = MATCH
         self.state_ends_at = now + self.settings.time_limit_min * 60
         for member in self.connected:
@@ -397,8 +457,10 @@ class Room:
         # Players who left stay in the table only until the match they played in is over.
         self.members = {pid: m for pid, m in self.members.items() if m.conn is not None}
         for member in self.members.values():
-            member.kills = 0
-            member.deaths = 0
+            member.kills = member.deaths = member.headshots = 0
+            member.shots = member.hits = 0
+            member.damage_dealt = member.damage_taken = 0
+            member.playtime_s = 0.0
 
     def _respawn(self, member: Member) -> None:
         self._spawn(member)

@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -7,14 +9,18 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from arena.api import players, rooms
+from arena.api import leaderboard, players, rooms
 from arena.config import Settings
 from arena.db.database import Database
+from arena.db.stats import save_match
 from arena.game.map import load_map
+from arena.game.results import MatchResult
 from arena.game.rooms import RoomRegistry
 from arena.net import ws
 
 ROOM_CODE_RE = re.compile(r"[A-Z0-9]{4}")
+
+log = logging.getLogger("arena")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -28,14 +34,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             yield
         finally:
+            # Order matters: end running matches, let their results be written, then close.
             await app.state.rooms.shutdown()
+            await asyncio.gather(*saves)
             await db.close()
 
     app = FastAPI(title="Arena", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.settings = settings
-    app.state.rooms = RoomRegistry(load_map("arena"), empty_ttl_s=settings.room_empty_ttl_s)
+    app.state.leaderboard_cache = {}
+
+    saves: set[asyncio.Task[None]] = set()
+
+    async def save(result: MatchResult) -> None:
+        try:
+            await save_match(app.state.db, result)
+            app.state.leaderboard_cache.clear()
+        except Exception:
+            log.exception("Could not save the match played in room %s", result.room_code)
+
+    def on_match_end(result: MatchResult) -> None:
+        # Written in the background: the game loop must not wait for the database.
+        task = asyncio.create_task(save(result))
+        saves.add(task)
+        task.add_done_callback(saves.discard)
+
+    app.state.rooms = RoomRegistry(
+        load_map("arena"), empty_ttl_s=settings.room_empty_ttl_s, on_match_end=on_match_end
+    )
     app.include_router(players.router)
     app.include_router(rooms.router)
+    app.include_router(leaderboard.router)
     app.include_router(ws.router)
 
     def page(name: str) -> FileResponse:

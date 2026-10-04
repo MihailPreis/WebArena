@@ -84,6 +84,33 @@ class RoomSettings(ApiModel):
     max_players: int = Field(_PLAYERS_DEFAULT, ge=_PLAYERS_MIN, le=_PLAYERS_MAX)
 
 
+class LeaderboardRow(ApiModel):
+    id: str
+    name: str
+    color: str
+    matches: int
+    wins: int
+    kills: int
+    deaths: int
+    kd: float
+
+
+class LeaderboardOut(ApiModel):
+    by: str
+    # Kills needed to appear in the K/D ranking.
+    min_kills: int
+    players: list[LeaderboardRow]
+
+
+class PlayerStatsOut(LeaderboardRow):
+    headshots: int
+    shots: int
+    hits: int
+    accuracy: float
+    damage_dealt: int
+    playtime_s: int
+
+
 class RoomOut(ApiModel):
     code: str
     host_id: str

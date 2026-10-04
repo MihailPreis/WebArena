@@ -1,6 +1,7 @@
 .home {
   width: 100%;
   max-width: 460px;
+  align-items: start;
   padding: 24px 16px;
   box-sizing: border-box;
   display: grid;
@@ -156,5 +157,112 @@
 @media (max-width: 420px) {
   .row {
     grid-template-columns: 1fr;
+  }
+}
+
+.forms {
+  display: grid;
+  gap: 16px;
+}
+
+#leaderboard-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+#leaderboard-tabs button {
+  flex: 1;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 14px;
+  color: #e6e6e6;
+  background: #0d0b12;
+  border: 2px solid #3a3346;
+  cursor: pointer;
+}
+
+#leaderboard-tabs button[aria-pressed='true'] {
+  color: #111;
+  background: #e6c35c;
+  border-color: #e6c35c;
+}
+
+#leaderboard table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+#leaderboard th {
+  padding: 4px 6px;
+  font-size: 11px;
+  font-weight: normal;
+  text-transform: uppercase;
+  text-align: right;
+  color: #9a93a8;
+}
+
+#leaderboard td {
+  padding: 5px 6px;
+  text-align: right;
+  border-top: 1px solid #2a2433;
+}
+
+#leaderboard th:nth-child(2),
+#leaderboard td:nth-child(2) {
+  text-align: left;
+  font-weight: bold;
+  /* Long names must not push the numbers off a narrow screen. */
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#leaderboard td:first-child,
+#leaderboard th:first-child {
+  text-align: left;
+  color: #9a93a8;
+}
+
+#leaderboard tr.me td {
+  background: rgba(230, 195, 92, 0.16);
+}
+
+#leaderboard td.sorted {
+  color: #e6c35c;
+  font-weight: bold;
+}
+
+.note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #9a93a8;
+}
+
+.note:empty {
+  display: none;
+}
+
+/* Wide screens: forms on the left, leaderboard on the right. */
+@media (min-width: 980px) {
+  .home {
+    max-width: 1000px;
+    grid-template-columns: 420px 1fr;
+  }
+
+  .home h1,
+  #status {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  #leaderboard th:nth-child(3),
+  #leaderboard td:nth-child(3),
+  #leaderboard th:nth-child(5),
+  #leaderboard td:nth-child(5) {
+    display: none;
   }
 }

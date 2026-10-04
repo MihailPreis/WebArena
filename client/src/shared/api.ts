@@ -24,6 +24,33 @@ export interface RoomInfo {
   settings: RoomSettings;
 }
 
+export type LeaderboardKind = 'kd' | 'kills' | 'wins';
+
+export interface LeaderboardRow extends Profile {
+  matches: number;
+  wins: number;
+  kills: number;
+  deaths: number;
+  kd: number;
+}
+
+export interface Leaderboard {
+  by: LeaderboardKind;
+  /** Kills a player needs before appearing in the K/D ranking. */
+  minKills: number;
+  players: LeaderboardRow[];
+}
+
+export interface PlayerStats extends LeaderboardRow {
+  headshots: number;
+  shots: number;
+  hits: number;
+  /** Share of shots that hit, 0 to 1. */
+  accuracy: number;
+  damageDealt: number;
+  playtimeS: number;
+}
+
 interface RequestOptions {
   method?: string;
   token?: string;
@@ -55,6 +82,11 @@ export const createRoom = (token: string, settings: RoomSettings) =>
   request<RoomInfo>('/api/rooms', { method: 'POST', token, body: settings });
 
 export const getRoom = (code: string) => request<RoomInfo>(`/api/rooms/${code}`);
+
+export const getLeaderboard = (by: LeaderboardKind) =>
+  request<Leaderboard>(`/api/leaderboard?by=${by}`);
+
+export const getPlayerStats = (id: string) => request<PlayerStats>(`/api/players/${id}`);
 
 export function isRoomFull(room: RoomInfo): boolean {
   return room.players >= room.settings.maxPlayers;
