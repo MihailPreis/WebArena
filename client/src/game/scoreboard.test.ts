@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ScoreRow } from './net/protocol';
-import { formatClock, killDeathRatio, resultTitle } from './scoreboard';
+import { formatClock, killDeathRatio, resultTitle, teamScoreLine, winningTeam } from './scoreboard';
 
 function row(name: string, kills: number, deaths: number): ScoreRow {
-  return { id: name, name, color: '#ffffff', kills, deaths, ping: 20, online: true };
+  return { id: name, name, color: '#ffffff', team: null, kills, deaths, ping: 20, online: true };
 }
 
 describe('killDeathRatio', () => {
@@ -38,5 +38,20 @@ describe('resultTitle', () => {
 
   it('breaks a tie on kills by deaths', () => {
     expect(resultTitle([row('Alice', 5, 2), row('Bob', 5, 5)]).winner?.name).toBe('Alice');
+  });
+});
+
+describe('team scores', () => {
+  it('names the team with more kills', () => {
+    expect(winningTeam({ blue: 12, red: 9 })).toBe('blue');
+    expect(winningTeam({ blue: 3, red: 9 })).toBe('red');
+  });
+
+  it('has no winner when level', () => {
+    expect(winningTeam({ blue: 4, red: 4 })).toBeNull();
+  });
+
+  it('formats the score line', () => {
+    expect(teamScoreLine({ blue: 12, red: 9 })).toBe('Синие 12 : 9 Красные');
   });
 });

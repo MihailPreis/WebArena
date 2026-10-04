@@ -27,6 +27,7 @@ export class Hud {
   private readonly deathTimer = element('death-timer');
   private readonly debug = element('debug');
   private readonly network = element('network');
+  private readonly hint = element('hint');
   private hitTimer = 0;
 
   setHealth(hp: number): void {
@@ -78,15 +79,34 @@ export class Hud {
     window.setTimeout(() => row.remove(), KILL_FEED_TTL_MS);
   }
 
-  /** Shows the death screen, or hides it when `killer` is null. */
-  setDeath(killer: NamedPlayer | null, secondsLeft = 0): void {
-    this.death.hidden = killer === null;
-    if (killer === null) return;
-    this.deathTitle.textContent = '';
+  /** Adds a line of plain text to the kill feed, e.g. a team change. */
+  addNotice(player: NamedPlayer, text: string): void {
+    const row = document.createElement('li');
     const name = document.createElement('span');
-    name.textContent = killer.name;
-    name.style.color = killer.color;
-    this.deathTitle.append('Вас убил ', name);
+    name.textContent = player.name;
+    name.style.color = player.color;
+    row.append(name, ` ${text}`);
+    this.feed.append(row);
+    while (this.feed.children.length > KILL_FEED_SIZE) this.feed.firstElementChild?.remove();
+    window.setTimeout(() => row.remove(), KILL_FEED_TTL_MS);
+  }
+
+  /**
+   * Shows the death screen, or hides it when `cause` is null. The cause is the
+   * killer, or a plain explanation when nobody killed the player.
+   */
+  setDeath(cause: NamedPlayer | string | null, secondsLeft = 0): void {
+    this.death.hidden = cause === null;
+    if (cause === null) return;
+    this.deathTitle.textContent = '';
+    if (typeof cause === 'string') {
+      this.deathTitle.append(cause);
+    } else {
+      const name = document.createElement('span');
+      name.textContent = cause.name;
+      name.style.color = cause.color;
+      this.deathTitle.append('Вас убил ', name);
+    }
     this.deathTimer.textContent = `Возрождение через ${Math.max(Math.ceil(secondsLeft), 0)}`;
   }
 
@@ -94,6 +114,12 @@ export class Hud {
   setNetworkStatus(text: string): void {
     this.network.textContent = text;
     this.network.hidden = text === '';
+  }
+
+  /** Shows a prompt in the middle of the screen; an empty string hides it. */
+  setHint(text: string): void {
+    this.hint.textContent = text;
+    this.hint.hidden = text === '';
   }
 
   setDebug(text: string): void {

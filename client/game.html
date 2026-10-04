@@ -16,6 +16,7 @@
       <div id="debug"></div>
       <div id="match"></div>
       <div id="network" hidden></div>
+      <div id="hint" hidden></div>
       <div id="scoreboard" hidden></div>
       <ul id="killfeed"></ul>
       <div id="health" title="Здоровье"></div>
@@ -63,9 +64,21 @@
           Громкость
           <input id="volume" type="range" min="0" max="1" step="0.05" />
         </label>
+        <div id="team-picker" hidden>
+          <p>Команда</p>
+          <div class="team-buttons">
+            <button type="button" data-team="blue"></button>
+            <button type="button" data-team="red"></button>
+          </div>
+          <p id="team-note"></p>
+        </div>
         <form id="host-settings" hidden>
           <p>Вы хост комнаты</p>
           <div class="host-fields">
+            <label>
+              Режим
+              <select id="host-mode"></select>
+            </label>
             <label>
               Убийств до победы
               <input id="host-kill-limit" type="number" required />

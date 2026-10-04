@@ -77,12 +77,20 @@ class SettingsMsg(_ClientModel):
     """The host changes the rules for the next match."""
 
     t: Literal["settings"]
+    mode: Literal["deathmatch", "team-deathmatch"]
     killLimit: int = Field(ge=ROOM["killLimit"]["min"], le=ROOM["killLimit"]["max"])
     timeLimitMin: int = Field(ge=ROOM["timeLimitMin"]["min"], le=ROOM["timeLimitMin"]["max"])
 
 
-ClientMessage = Annotated[InputMsg | PingMsg | SettingsMsg, Field(discriminator="t")]
-CLIENT_MESSAGE: TypeAdapter[InputMsg | PingMsg | SettingsMsg] = TypeAdapter(ClientMessage)
+class TeamMsg(_ClientModel):
+    """The player asks to switch sides."""
+
+    t: Literal["team"]
+    team: Literal["blue", "red"]
+
+
+ClientMessage = Annotated[InputMsg | PingMsg | SettingsMsg | TeamMsg, Field(discriminator="t")]
+CLIENT_MESSAGE: TypeAdapter[InputMsg | PingMsg | SettingsMsg | TeamMsg] = TypeAdapter(ClientMessage)
 
 
 def encode(message: dict[str, Any]) -> str:

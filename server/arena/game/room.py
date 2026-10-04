@@ -12,7 +12,7 @@ from typing import Any, Protocol
 from arena.db.players import Player
 from arena.game.combat import Target, aim_direction, eye_position, trace_shot
 from arena.game.map import GameMap, Vec3
-from arena.game.modes import MODES
+from arena.game.modes import MODES, TEAMS
 from arena.game.movement import TICK_DT, InputCmd, PlayerState, create_player, step_player
 from arena.game.results import MatchResult, PlayerResult
 from arena.game.weapon import WeaponState, step_weapon
@@ -88,6 +88,8 @@ class Member:
     conn: Outbox | None = None
     kills: int = 0
     deaths: int = 0
+    team: str | None = None
+    """Side in a team mode; None in a free-for-all."""
     joined: int = 0
     """Order of arrival; the longest-present player inherits the host role."""
     ping: int = 0
@@ -177,6 +179,7 @@ class Room:
         member.last_seq = -1
         member.ack = -1
         member.credit = 0.0
+        member.team = self.mode.assign_team(member, [m for m in self.connected if m is not member])
         self._spawn(member)
         self.empty_since = None
 
@@ -191,12 +194,12 @@ class Room:
                     "map": self.map.name,
                     "you": state_json(member.state),
                     "status": self._status(member),
-                    "players": [_public(m.player) for m in others],
+                    "players": [_public(m) for m in others],
                 }
             )
         )
         if not rejoining:
-            self._broadcast({"t": "event", "e": "join", "player": _public(player)}, skip=member)
+            self._broadcast({"t": "event", "e": "join", "player": _public(member)}, skip=member)
         self._send_room_state()
         log.info(
             "player_joined",
@@ -222,14 +225,48 @@ class Room:
             extra={"room": self.code, "player": member.player.id, "players": len(connected)},
         )
 
-    def change_settings(self, member: Member, kill_limit: int, time_limit_min: int) -> None:
+    def change_settings(
+        self, member: Member, mode: str, kill_limit: int, time_limit_min: int
+    ) -> None:
         """Lets the host change the rules, but only between matches."""
         if member.player.id != self.host_id or self.state == MATCH:
             return
+        if mode != self.settings.mode:
+            self.mode = MODES[mode]
+            # Deal the sides afresh, in order of arrival, so they come out even.
+            members = sorted(self.members.values(), key=lambda m: m.joined)
+            for m in members:
+                m.team = None
+            for i, m in enumerate(members):
+                m.team = self.mode.assign_team(m, members[:i])
         self.settings = dataclasses.replace(
-            self.settings, kill_limit=kill_limit, time_limit_min=time_limit_min
+            self.settings, mode=mode, kill_limit=kill_limit, time_limit_min=time_limit_min
         )
         self._send_room_state()
+
+    def change_team(self, member: Member, team: str) -> None:
+        """Moves a player to the other side. During a match this costs a life."""
+        if member.team not in TEAMS or team not in TEAMS or team == member.team:
+            return
+        others = [m for m in self.connected if m is not member]
+        joining = sum(1 for m in others if m.team == team) + 1
+        leaving = sum(1 for m in others if m.team == member.team)
+        if joining - leaving > 1:
+            return  # Would leave the sides uneven by more than one player.
+        member.team = team
+        self._broadcast({"t": "event", "e": "team", "id": member.player.id, "team": team})
+        if self.state == MATCH and member.alive:
+            member.alive = False
+            member.hp = 0
+            member.deaths += 1
+            member.respawn_at = self.time + RESPAWN_DELAY_S
+            member.history.clear()
+        elif self.state == WAITING:
+            self._respawn(member)
+        self._send_room_state()
+        log.info(
+            "team_changed", extra={"room": self.code, "player": member.player.id, "team": team}
+        )
 
     def receive_input(self, member: Member, seq: int, cmd: InputCmd, render_time: float) -> None:
         if seq <= member.last_seq or len(member.inputs) >= MAX_QUEUED_INPUTS:
@@ -345,7 +382,7 @@ class Room:
         targets = [
             Target(m.player.id, *_position_at(m, seen_at))
             for m in self.connected
-            if m is not shooter and m.alive
+            if m.alive and self.mode.are_enemies(shooter, m)
         ]
         origin = eye_position(shooter.state)
         result = trace_shot(self.map, origin, aim_direction(cmd.yaw, cmd.pitch), targets)
@@ -428,14 +465,15 @@ class Room:
         self.state_ends_at = self.time + RESULTS_S
         self._send_room_state()
         members = list(self.members.values())
-        winner = self.mode.winner(members)
+        winners = self.mode.winners(members)
         log.info(
             "match_ended",
             extra={
                 "room": self.code,
                 "players": len(members),
                 "kills": sum(member.kills for member in members),
-                "winner": winner.player.id if winner else None,
+                "mode": self.settings.mode,
+                "winners": [member.player.id for member in winners],
             },
         )
         if self._on_match_end is None:
@@ -461,7 +499,8 @@ class Room:
                         damage_taken=member.damage_taken,
                         playtime_s=round(member.playtime_s),
                         place=place,
-                        won=member is winner,
+                        won=member in winners,
+                        team=member.team,
                     )
                     for place, member in enumerate(self.mode.ranking(members), start=1)
                 ),
@@ -494,8 +533,8 @@ class Room:
         )
 
     def _spawn(self, member: Member) -> None:
-        others = [m for m in self.connected if m is not member and m.alive]
-        member.state = create_player(self.mode.pick_spawn(self.map, member, others))
+        enemies = [m for m in self.connected if m.alive and self.mode.are_enemies(member, m)]
+        member.state = create_player(self.mode.pick_spawn(self.map, member, enemies))
         member.hp = MAX_HEALTH
         member.alive = True
         member.weapon = WeaponState()
@@ -511,6 +550,7 @@ class Room:
                 "state": self.state,
                 "timeLeft": time_left,
                 "hostId": self.host_id,
+                "teams": self.mode.team_scores(list(self.members.values())),
                 "settings": {
                     "mode": self.settings.mode,
                     "killLimit": self.settings.kill_limit,
@@ -519,7 +559,7 @@ class Room:
                 },
                 "players": [
                     {
-                        **_public(member.player),
+                        **_public(member),
                         "kills": member.kills,
                         "deaths": member.deaths,
                         "ping": member.ping,
@@ -571,6 +611,7 @@ def _position_at(member: Member, time: float) -> tuple[Vec3, bool]:
     return history[0][1], history[0][2]
 
 
-def _public(player: Player) -> dict[str, str]:
+def _public(member: Member) -> dict[str, str | None]:
     """What other players may know about a player. Never includes the token."""
-    return {"id": player.id, "name": player.name, "color": player.color}
+    player = member.player
+    return {"id": player.id, "name": player.name, "color": player.color, "team": member.team}

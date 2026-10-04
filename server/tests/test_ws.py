@@ -91,7 +91,8 @@ def test_players_see_each_other(api: TestClient) -> None:
             second.send_json(hello(guest["token"]))
             assert [p["id"] for p in receive(second, "welcome")["players"]] == [host["id"]]
             joined = receive_event(first, "join")
-            assert joined["player"] == {k: guest[k] for k in ("id", "name", "color")}
+            public = {k: guest[k] for k in ("id", "name", "color")}
+            assert joined["player"] == {**public, "team": None}
             assert [p["id"] for p in receive(second, "snapshot")["players"]] == [host["id"]]
         left = receive_event(first, "leave")
         assert left == {"t": "event", "e": "leave", "id": guest["id"]}
@@ -160,7 +161,7 @@ def test_ping_report_and_host_settings(api: TestClient) -> None:
 
         ws.send_json({"t": "ping", "id": 1, "rtt": 57})
         receive(ws, "pong")
-        ws.send_json({"t": "settings", "killLimit": 40, "timeLimitMin": 3})
+        ws.send_json({"t": "settings", "mode": "deathmatch", "killLimit": 40, "timeLimitMin": 3})
         state = receive(ws, "room")
         assert state["settings"]["killLimit"] == 40
         assert state["players"][0]["ping"] == 57
@@ -173,7 +174,9 @@ def test_out_of_range_settings_are_a_protocol_error(api: TestClient) -> None:
     with pytest.raises(WebSocketDisconnect) as closed, api.websocket_connect(f"/ws/{code}") as ws:
         ws.send_json(hello(host["token"]))
         receive(ws, "welcome")
-        ws.send_json({"t": "settings", "killLimit": 100000, "timeLimitMin": 3})
+        ws.send_json(
+            {"t": "settings", "mode": "deathmatch", "killLimit": 100000, "timeLimitMin": 3}
+        )
         receive(ws, "never")
     assert closed.value.code == CloseCode.BAD_MESSAGE
 

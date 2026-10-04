@@ -14,6 +14,7 @@ class PlayerResult:
     playtime_s: int
     place: int
     won: bool
+    team: str | None = None
 
 
 @dataclass(frozen=True)

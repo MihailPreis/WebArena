@@ -10,7 +10,10 @@ const NAME_GAP = 0.15;
 export interface RenderPlayer {
   id: string;
   name: string;
+  /** Colour of the body and of the name tag. */
   color: string;
+  /** Colour of sleeves and details, if different from the body. */
+  accent: string | null;
   /** Feet position. */
   pos: Vec3;
   yaw: number;
@@ -20,6 +23,7 @@ export interface RenderPlayer {
 interface Entry {
   name: string;
   color: string;
+  accent: string | null;
   body: Sprite;
   tag: Sprite;
 }
@@ -43,7 +47,12 @@ export class PlayerSprites {
     for (const player of players) {
       seen.add(player.id);
       let entry = this.entries.get(player.id);
-      if (entry && (entry.name !== player.name || entry.color !== player.color)) {
+      if (
+        entry &&
+        (entry.name !== player.name ||
+          entry.color !== player.color ||
+          entry.accent !== player.accent)
+      ) {
         this.remove(player.id, entry);
         entry = undefined;
       }
@@ -69,7 +78,7 @@ export class PlayerSprites {
   }
 
   private create(player: RenderPlayer): Entry {
-    const atlas = pixelTexture(paintPlayerAtlas(player.color));
+    const atlas = pixelTexture(paintPlayerAtlas(player.color, player.accent));
     atlas.repeat.set(1 / FRAME_COUNT, 0.5);
     const body = new Sprite(new SpriteMaterial({ map: atlas, alphaTest: 0.5 }));
     body.center.set(0.5, 0);
@@ -81,7 +90,7 @@ export class PlayerSprites {
     tag.scale.set((NAME_HEIGHT * tagCanvas.width) / tagCanvas.height, NAME_HEIGHT, 1);
 
     this.group.add(body, tag);
-    return { name: player.name, color: player.color, body, tag };
+    return { name: player.name, color: player.color, accent: player.accent, body, tag };
   }
 
   private remove(id: string, entry: Entry): void {

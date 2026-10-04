@@ -4,7 +4,14 @@ import arenaJson from '@shared/maps/arena.json';
 import constants from '@shared/constants.json';
 import { ApiError, getRoom, isRoomFull, type RoomInfo } from '../shared/api';
 import { roomCodeFromPath } from '../shared/roomCode';
-import { describeSettings } from '../shared/roomText';
+import {
+  describeSettings,
+  modeName,
+  TEAM_COLORS,
+  TEAM_NAMES,
+  TEAMS,
+  type Team,
+} from '../shared/roomText';
 import { ensureSession, type Session } from '../shared/session';
 import { GameAudio } from './audio';
 import { Hud, type NamedPlayer } from './hud';
@@ -26,7 +33,7 @@ import {
 } from './net/protocol';
 import { createRenderer } from './render/renderer';
 import { createViewmodel } from './render/viewmodel';
-import { formatClock, Scoreboard } from './scoreboard';
+import { formatClock, Scoreboard, teamScoreLine } from './scoreboard';
 import {
   loadSensitivity,
   loadVolume,
@@ -206,7 +213,9 @@ interface GameOptions {
 const STEP_DISTANCE = 2.2;
 // How far in front of the camera the gun's muzzle is imagined to be.
 const MUZZLE_DISTANCE = 0.5;
-const UNKNOWN_PLAYER: NamedPlayer = { name: '?', color: '#ffffff' };
+// After Esc releases the mouse, ignore Esc for a moment: that same key press must not
+// close the menu it has just opened.
+const ESCAPE_GUARD_MS = 250;
 
 function createGame({ welcome, connection: firstConnection, roster, self }: GameOptions) {
   let connection = firstConnection;
@@ -253,10 +262,27 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
   hostKillLimit.max = String(constants.room.killLimit.max);
   hostTimeLimit.min = String(constants.room.timeLimitMin.min);
   hostTimeLimit.max = String(constants.room.timeLimitMin.max);
+  const hostMode = element<HTMLSelectElement>('host-mode');
+  for (const mode of constants.room.modes) hostMode.add(new Option(modeName(mode), mode));
   hostForm.addEventListener('submit', (event) => {
     event.preventDefault();
-    connection.sendSettings(hostKillLimit.valueAsNumber, hostTimeLimit.valueAsNumber);
+    connection.sendSettings(
+      hostMode.value,
+      hostKillLimit.valueAsNumber,
+      hostTimeLimit.valueAsNumber,
+    );
   });
+
+  // Side selection, shown in team modes.
+  const teamPicker = element('team-picker');
+  const teamNote = element('team-note');
+  const teamButtons = new Map<Team, HTMLButtonElement>();
+  for (const button of teamPicker.querySelectorAll<HTMLButtonElement>('button')) {
+    const team = button.dataset.team as Team;
+    teamButtons.set(team, button);
+    button.style.setProperty('--team', TEAM_COLORS[team]);
+    button.addEventListener('click', () => connection.sendTeam(team));
+  }
 
   const scoreboard = new Scoreboard(element('scoreboard'), welcome.id);
   const matchLine = element('match');
@@ -264,12 +290,31 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
   let roomStateAt = 0;
 
   let running = true;
-  const input = new Input(
+  let started = false;
+  let unlockedAt = 0;
+  // The pause menu was closed with Esc, but the browser has not given the mouse back yet.
+  let dismissed = false;
+  function refreshMenu(): void {
+    const menu = !input.locked && !dismissed;
+    overlay.hidden = !menu;
+    hudRoot.hidden = menu;
+    hud.setHint(
+      dismissed && !input.locked ? 'Кликните или нажмите любую клавишу, чтобы продолжить' : '',
+    );
+  }
+  const input: Input = new Input(
     canvas,
     () => sensitivity,
     (locked) => {
-      overlay.hidden = locked;
-      hudRoot.hidden = !locked;
+      dismissed = false;
+      if (locked) {
+        started = true;
+        // From now on the menu is a pause menu.
+        play.textContent = 'Продолжить';
+      } else {
+        unlockedAt = performance.now();
+      }
+      refreshMenu();
     },
   );
   input.yaw = welcome.you.yaw;
@@ -280,21 +325,55 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
   };
   play.addEventListener('click', lock);
   canvas.addEventListener('click', lock);
+  // Esc opens the pause menu (the browser releases the mouse); Esc again closes it.
+  // Browsers do not count Esc as a gesture that may capture the mouse, so closing the
+  // menu and getting the mouse back are separate steps: if the capture is refused, the
+  // menu still closes and the next click or key press captures the mouse.
+  window.addEventListener('keydown', (event) => {
+    if (!started || !running || input.locked) return;
+    if (event.code !== 'Escape') {
+      if (dismissed) lock();
+      return;
+    }
+    if (event.repeat || performance.now() - unlockedAt < ESCAPE_GUARD_MS) return;
+    event.preventDefault();
+    dismissed = !dismissed;
+    refreshMenu();
+    if (dismissed) lock();
+  });
   for (const id of ['play', 'controls', 'sensitivity-row', 'volume-row']) {
     element(id).hidden = false;
   }
 
   const myId = welcome.id;
-  const lookup = (id: string): NamedPlayer =>
-    id === myId ? self : (roster.get(id) ?? UNKNOWN_PLAYER);
+  let myTeam: Team | null = null;
+  /**
+   * How a player is shown. In a team mode the main colour is the team's and the
+   * player's own colour becomes the accent (sleeves and details).
+   */
+  function appearance(id: string): NamedPlayer & { accent: string | null } {
+    const player = id === myId ? { ...self, team: myTeam } : roster.get(id);
+    if (!player) return { name: '?', color: '#ffffff', accent: null };
+    return player.team
+      ? { name: player.name, color: TEAM_COLORS[player.team], accent: player.color }
+      : { name: player.name, color: player.color, accent: null };
+  }
+  const lookup = (id: string): NamedPlayer => appearance(id);
 
   const loop = new FixedStep(TICK_DT);
   const view = new ViewSmoother();
   let prediction = new Prediction(map, welcome.you, welcome.status);
   let remotes = new RemoteInterpolator(INTERPOLATION_DELAY_S);
   let status: SelfStatus = welcome.status;
-  let others: (NamedPlayer & { id: string; pos: Vec3; yaw: number; crouched: boolean })[] = [];
-  let killer: NamedPlayer | null = null;
+  let others: (NamedPlayer & {
+    accent: string | null;
+    id: string;
+    pos: Vec3;
+    yaw: number;
+    crouched: boolean;
+  })[] = [];
+  // Who killed the player, or a plain explanation when nobody did.
+  let deathCause: NamedPlayer | string = '';
   let diedAt = 0;
   let stride = 0;
   let nextStep = STEP_DISTANCE;
@@ -359,7 +438,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     lastTime = now;
     const seconds = now / 1000;
 
-    others = remotes.sample(seconds).map((remote) => ({ ...remote, ...lookup(remote.id) }));
+    others = remotes.sample(seconds).map((remote) => ({ ...remote, ...appearance(remote.id) }));
     const renderTime = remotes.renderTime(seconds);
 
     const steps = running ? loop.advance(dt) : 0;
@@ -392,10 +471,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
 
     hud.setHealth(status.hp);
     hud.setAmmo(prediction.weapon.ammo, WEAPON.magazine, reloading);
-    hud.setDeath(
-      dead ? (killer ?? UNKNOWN_PLAYER) : null,
-      COMBAT.respawnDelayS - (now - diedAt) / 1000,
-    );
+    hud.setDeath(dead ? deathCause : null, COMBAT.respawnDelayS - (now - diedAt) / 1000);
 
     if (roomState) {
       const timeLeft =
@@ -406,7 +482,9 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
       const mine = roomState.players.find((row) => row.id === myId);
       if (roomState.state === 'waiting') matchLine.textContent = 'Ожидание игроков';
       else if (results) matchLine.textContent = 'Матч окончен';
-      else {
+      else if (roomState.teams) {
+        matchLine.textContent = `${formatClock(timeLeft ?? 0)} · ${teamScoreLine(roomState.teams)}`;
+      } else {
         matchLine.textContent = `${formatClock(timeLeft ?? 0)} · ${mine?.kills ?? 0} / ${roomState.settings.killLimit}`;
       }
     }
@@ -440,17 +518,40 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
       const isHost = state.hostId === myId;
       const editable = state.state !== 'match';
       hostForm.hidden = !isHost;
+      hostMode.disabled = !editable;
       hostKillLimit.disabled = hostTimeLimit.disabled = hostApply.disabled = !editable;
       hostNote.textContent = editable
         ? 'Изменения действуют со следующего матча.'
         : 'Параметры можно менять между матчами.';
       // Do not overwrite what the host is typing with every periodic update.
       const changed =
-        previous?.settings.killLimit !== state.settings.killLimit ||
+        previous?.settings.mode !== state.settings.mode ||
+        previous.settings.killLimit !== state.settings.killLimit ||
         previous.settings.timeLimitMin !== state.settings.timeLimitMin;
       if (changed) {
+        hostMode.value = state.settings.mode;
         hostKillLimit.value = String(state.settings.killLimit);
         hostTimeLimit.value = String(state.settings.timeLimitMin);
+      }
+
+      myTeam = state.players.find((row) => row.id === myId)?.team ?? null;
+      teamPicker.hidden = state.teams === null || myTeam === null;
+      if (state.teams && myTeam) {
+        const size = (team: Team) =>
+          state.players.filter((row) => row.online && row.team === team).length;
+        for (const team of TEAMS) {
+          const button = teamButtons.get(team);
+          if (!button) continue;
+          const mine = team === myTeam;
+          button.textContent = `${TEAM_NAMES[team]} · ${size(team)}`;
+          button.setAttribute('aria-pressed', String(mine));
+          // The server refuses a switch that leaves the sides uneven by more than one.
+          button.disabled = mine || size(team) + 1 - (size(myTeam) - 1) > 1;
+        }
+        teamNote.textContent =
+          state.state === 'match'
+            ? 'Смена команды во время матча считается смертью.'
+            : 'До начала матча команду можно менять свободно.';
       }
     },
     handleEvent(event: EventMsg): void {
@@ -475,7 +576,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
         case 'kill':
           hud.addKill(lookup(event.by), lookup(event.target), event.head);
           if (event.target === myId) {
-            killer = lookup(event.by);
+            deathCause = lookup(event.by);
             diedAt = performance.now();
             audio.death(null);
           } else {
@@ -484,6 +585,19 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
             if (event.by === myId) hud.hitMarker(true);
           }
           break;
+        case 'team': {
+          // The roster still holds the old side; show the new one.
+          const player = appearance(event.id);
+          hud.addNotice(
+            { name: player.name, color: TEAM_COLORS[event.team] },
+            event.team === 'blue' ? 'теперь за синих' : 'теперь за красных',
+          );
+          if (event.id === myId) {
+            deathCause = 'Вы сменили команду';
+            diedAt = performance.now();
+          }
+          break;
+        }
         case 'spawn':
           if (event.id === myId) {
             input.yaw = event.yaw;
@@ -513,6 +627,8 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     /** Freezes the game for good; the last frame stays on screen. */
     stop(): void {
       running = false;
+      dismissed = false;
+      refreshMenu();
       play.hidden = true;
       hud.setNetworkStatus('');
       if (document.pointerLockElement) document.exitPointerLock();

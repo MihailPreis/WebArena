@@ -14,7 +14,7 @@ def _room_out(room: Room) -> RoomOut:
         host_id=room.host_id,
         players=len(room.connected),
         settings=RoomSettings(
-            mode="deathmatch",
+            mode=room.settings.mode,
             kill_limit=room.settings.kill_limit,
             time_limit_min=room.settings.time_limit_min,
             max_players=room.settings.max_players,

@@ -1,6 +1,9 @@
 // Wire protocol. Mirrors server/arena/net/protocol.py — change both together.
 import constants from '@shared/constants.json';
+import type { Team } from '../../shared/roomText';
 import type { Vec3 } from '../sim/map';
+
+export type { Team };
 import type { InputCmd, PlayerState } from '../sim/movement';
 
 export const PROTOCOL_VERSION = constants.net.protocolVersion;
@@ -24,6 +27,8 @@ export interface PublicPlayer {
   id: string;
   name: string;
   color: string;
+  /** Side in a team mode; null in a free-for-all. */
+  team: Team | null;
 }
 
 export interface RemoteState {
@@ -74,7 +79,9 @@ export type EventMsg =
   /** Sent to the shooter and the target only; `from` is the shooter's position. */
   | { t: 'event'; e: 'hit'; by: string; target: string; dmg: number; head: boolean; from: Vec3 }
   | { t: 'event'; e: 'kill'; by: string; target: string; head: boolean }
-  | { t: 'event'; e: 'spawn'; id: string; yaw: number };
+  | { t: 'event'; e: 'spawn'; id: string; yaw: number }
+  /** A player switched sides. */
+  | { t: 'event'; e: 'team'; id: string; team: Team };
 
 export interface ScoreRow extends PublicPlayer {
   kills: number;
@@ -94,6 +101,8 @@ export interface RoomStateMsg {
   /** Seconds until the current state ends; null while waiting for players. */
   timeLeft: number | null;
   hostId: string;
+  /** Score of each team; null when the mode has no teams. */
+  teams: Record<Team, number> | null;
   settings: { mode: string; killLimit: number; timeLimitMin: number; maxPlayers: number };
   /** Ordered from first place to last. */
   players: ScoreRow[];
@@ -124,7 +133,8 @@ export type ClientMessage =
       rt: number;
     }
   | { t: 'ping'; id: number; rtt: number }
-  | { t: 'settings'; killLimit: number; timeLimitMin: number };
+  | { t: 'settings'; mode: string; killLimit: number; timeLimitMin: number }
+  | { t: 'team'; team: Team };
 
 export function inputMessage(seq: number, cmd: InputCmd, renderTime: number): ClientMessage {
   return {

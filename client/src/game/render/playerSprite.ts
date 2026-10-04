@@ -18,6 +18,7 @@ function drawFigure(
   frame: number,
   crouched: boolean,
   color: string,
+  accent: string | null,
 ): void {
   const rect = (x: number, y: number, w: number, h: number, style: string) => {
     ctx.fillStyle = style;
@@ -44,15 +45,20 @@ function drawFigure(
 
   rect(torsoLeft, torsoTop, torsoWidth, torsoHeight, color);
   rect(torsoLeft, torsoTop + torsoHeight - 2, torsoWidth, 2, shade(color, 0.7));
+  // Sleeves and the backpack take the accent colour when there is one.
+  const sleeve = accent ?? shade(color, 0.6);
   if (Math.abs(side) > 0.9) {
-    rect(centre - 1, torsoTop + 1, 2, torsoHeight - 3, shade(color, 0.6));
+    rect(centre - 1, torsoTop + 1, 2, torsoHeight - 3, sleeve);
   } else {
-    rect(torsoLeft - 2, torsoTop, 2, torsoHeight - 2, shade(color, 0.6));
-    rect(torsoLeft + torsoWidth, torsoTop, 2, torsoHeight - 2, shade(color, 0.6));
+    rect(torsoLeft - 2, torsoTop, 2, torsoHeight - 2, sleeve);
+    rect(torsoLeft + torsoWidth, torsoTop, 2, torsoHeight - 2, sleeve);
   }
-  if (toward < -0.3) rect(centre - 2, torsoTop + 1, 4, 5, shade(color, 0.45));
+  if (toward < -0.3) {
+    rect(centre - 2, torsoTop + 1, 4, 5, accent ? shade(accent, 0.75) : shade(color, 0.45));
+  }
 
   rect(centre - 3, headTop, 6, 6, shade(color, 0.85));
+  if (accent) rect(centre - 3, headTop, 6, 1, accent);
   if (toward > -0.3) {
     const visorWidth = toward > 0.5 ? 4 : 2;
     rect(centre + side * 2.5 - visorWidth / 2, headTop + 2, visorWidth, 2, '#7fe9ff');
@@ -62,16 +68,19 @@ function drawFigure(
   else if (toward > -0.8) rect(side > 0 ? centre + 1 : centre - 7, torsoTop + 3, 6, 2, '#9aa0a8');
 }
 
-/** Paints all frames for one player colour: a row of standing frames above a row of crouching ones. */
-export function paintPlayerAtlas(color: string): HTMLCanvasElement {
+/**
+ * Paints all frames for one player: a row of standing frames above a row of crouching ones.
+ * `color` is the body; `accent`, if given, colours the sleeves, the backpack and a helmet stripe.
+ */
+export function paintPlayerAtlas(color: string, accent: string | null): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = CELL_WIDTH * FRAME_COUNT;
   canvas.height = CELL_HEIGHT * 2;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D canvas is not available');
   for (let frame = 0; frame < FRAME_COUNT; frame++) {
-    drawFigure(ctx, frame * CELL_WIDTH, 0, frame, false, color);
-    drawFigure(ctx, frame * CELL_WIDTH, CELL_HEIGHT, frame, true, color);
+    drawFigure(ctx, frame * CELL_WIDTH, 0, frame, false, color, accent);
+    drawFigure(ctx, frame * CELL_WIDTH, CELL_HEIGHT, frame, true, color, accent);
   }
   return canvas;
 }

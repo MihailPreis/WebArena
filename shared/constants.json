@@ -39,7 +39,7 @@
     ]
   },
   "room": {
-    "modes": ["deathmatch"],
+    "modes": ["deathmatch", "team-deathmatch"],
     "killLimit": {
       "min": 5,
       "max": 100,
@@ -57,7 +57,7 @@
     }
   },
   "net": {
-    "protocolVersion": 3,
+    "protocolVersion": 4,
     "snapshotRate": 30,
     "interpolationDelayMs": 100,
     "maxInputBurst": 20,
@@ -82,5 +82,13 @@
   "match": {
     "minPlayers": 2,
     "resultsS": 10
+  },
+  "teams": {
+    "blue": {
+      "color": "#4d8dff"
+    },
+    "red": {
+      "color": "#ff4d4d"
+    }
   }
 }

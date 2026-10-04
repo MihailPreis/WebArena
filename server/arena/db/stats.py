@@ -98,9 +98,9 @@ async def save_match(db: Database, result: MatchResult) -> None:
             )
             await conn.execute(
                 "INSERT INTO match_players (match_id, player_id, kills, deaths, headshots, shots,"
-                " hits, damage_dealt, damage_taken, playtime_s, place, won)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (match_id, p.player_id, *counters, p.place, int(p.won)),
+                " hits, damage_dealt, damage_taken, playtime_s, place, won, team)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (match_id, p.player_id, *counters, p.place, int(p.won), p.team),
             )
             await conn.execute(
                 "INSERT INTO player_stats (player_id, matches, wins, kills, deaths, headshots,"

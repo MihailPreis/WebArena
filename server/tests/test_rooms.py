@@ -55,7 +55,7 @@ def test_create_room_requires_a_player(api: TestClient) -> None:
         {"timeLimitMin": 31},
         {"maxPlayers": 1},
         {"maxPlayers": 9},
-        {"mode": "team-deathmatch"},
+        {"mode": "capture-the-flag"},
         {"killLimit": "many"},
     ],
 )

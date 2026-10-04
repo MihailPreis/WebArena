@@ -9,6 +9,10 @@ describe('describeSettings', () => {
     expect(describeSettings(settings)).toBe('Deathmatch · до 25 убийств · 10 мин · до 8 игроков');
   });
 
+  it('names the team mode', () => {
+    expect(describeSettings({ ...settings, mode: 'team-deathmatch' })).toContain('Team Deathmatch');
+  });
+
   it('falls back to the raw id for an unknown mode', () => {
     expect(describeSettings({ ...settings, mode: 'ctf' })).toContain('ctf');
   });

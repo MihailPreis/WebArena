@@ -427,3 +427,83 @@ body.game {
 #network[hidden] {
   display: none;
 }
+
+#team-picker {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  font-size: 14px;
+}
+
+#team-picker[hidden] {
+  display: none;
+}
+
+#team-picker p {
+  margin: 0;
+}
+
+#team-note {
+  font-size: 12px;
+  color: #b8b2c4;
+}
+
+.team-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.team-buttons button {
+  min-width: 130px;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: bold;
+  color: var(--team);
+  background: none;
+  border: 2px solid var(--team);
+  cursor: pointer;
+}
+
+.team-buttons button[aria-pressed='true'] {
+  color: #111;
+  background: var(--team);
+  cursor: default;
+}
+
+.team-buttons button:disabled:not([aria-pressed='true']) {
+  opacity: 0.4;
+  cursor: default;
+}
+
+#scoreboard tr.team td {
+  padding-top: 10px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px solid currentColor;
+}
+
+.host-fields select {
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font: inherit;
+  color: #e6e6e6;
+  background: #0d0b12;
+  border: 2px solid #3a3346;
+}
+
+#hint {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  font-weight: bold;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.6);
+  text-shadow: 1px 1px 0 #000;
+}
+
+#hint[hidden] {
+  display: none;
+}

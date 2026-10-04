@@ -194,24 +194,24 @@ def test_only_the_host_changes_settings_and_only_between_matches() -> None:
     alice_conn = FakeConn()
     alice = room.join(ALICE, alice_conn)
 
-    room.change_settings(alice, 30, 5)
+    room.change_settings(alice, "deathmatch", 30, 5)
     assert (room.settings.kill_limit, room.settings.time_limit_min) == (30, 5)
     assert alice_conn.last("room")["settings"]["killLimit"] == 30
 
     bob = room.join(BOB, FakeConn())
-    room.change_settings(bob, 99, 9)
+    room.change_settings(bob, "deathmatch", 99, 9)
     assert room.settings.kill_limit == 30
 
     room.tick()
     assert room.state == MATCH
     assert alice_conn.last("room")["timeLeft"] == 300
-    room.change_settings(alice, 10, 2)
+    room.change_settings(alice, "deathmatch", 10, 2)
     assert room.settings.kill_limit == 30
 
     score(room, alice, bob, 30)
     room.tick()
     assert room.state == RESULTS
-    room.change_settings(alice, 10, 2)
+    room.change_settings(alice, "deathmatch", 10, 2)
     assert (room.settings.kill_limit, room.settings.time_limit_min) == (10, 2)
 
 

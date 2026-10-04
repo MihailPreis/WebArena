@@ -77,8 +77,7 @@ _PLAYERS_MIN, _PLAYERS_MAX, _PLAYERS_DEFAULT = _limit("maxPlayers")
 
 
 class RoomSettings(ApiModel):
-    # Team deathmatch will be added here later.
-    mode: Literal["deathmatch"] = "deathmatch"
+    mode: Literal["deathmatch", "team-deathmatch"] = "deathmatch"
     kill_limit: int = Field(_KILL_DEFAULT, ge=_KILL_MIN, le=_KILL_MAX)
     time_limit_min: int = Field(_TIME_DEFAULT, ge=_TIME_MIN, le=_TIME_MAX)
     max_players: int = Field(_PLAYERS_DEFAULT, ge=_PLAYERS_MIN, le=_PLAYERS_MAX)

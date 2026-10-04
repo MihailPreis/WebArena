@@ -30,12 +30,13 @@ def test_welcome_describes_the_room_to_the_newcomer() -> None:
     welcome = bob.last("welcome")
     assert welcome["id"] == BOB.id
     assert welcome["map"] == "arena"
-    assert welcome["players"] == [{"id": "a1", "name": "Alice", "color": "#ff5555"}]
+    alice_public = {"id": "a1", "name": "Alice", "color": "#ff5555", "team": None}
+    assert welcome["players"] == [alice_public]
     assert welcome["you"]["pos"] in [list(spawn.position) for spawn in ARENA.spawns]
     assert alice.last("event") == {
         "t": "event",
         "e": "join",
-        "player": {"id": "b2", "name": "Bob", "color": "#54a0ff"},
+        "player": {"id": "b2", "name": "Bob", "color": "#54a0ff", "team": None},
     }
 
 

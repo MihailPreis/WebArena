@@ -6,6 +6,7 @@ import {
   type EventMsg,
   type RoomStateMsg,
   type ServerMessage,
+  type Team,
   type SnapshotMsg,
   type WelcomeMsg,
 } from './protocol';
@@ -77,8 +78,13 @@ export class Connection {
   }
 
   /** Asks the server to change the rules; it only obeys the host, between matches. */
-  sendSettings(killLimit: number, timeLimitMin: number): void {
-    this.send({ t: 'settings', killLimit, timeLimitMin });
+  sendSettings(mode: string, killLimit: number, timeLimitMin: number): void {
+    this.send({ t: 'settings', mode, killLimit, timeLimitMin });
+  }
+
+  /** Asks to switch sides; the server refuses if that would unbalance the teams. */
+  sendTeam(team: Team): void {
+    this.send({ t: 'team', team });
   }
 
   private send(message: ClientMessage): void {

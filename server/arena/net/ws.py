@@ -18,6 +18,7 @@ from arena.net.protocol import (
     Hello,
     InputMsg,
     PingMsg,
+    SettingsMsg,
     encode,
 )
 from arena.ratelimit import RateLimiter
@@ -98,8 +99,10 @@ async def _read(websocket: WebSocket, room: Room, member: Member, conn: WsConnec
         elif isinstance(message, PingMsg):
             member.ping = message.rtt
             conn.send(encode({"t": "pong", "id": message.id}))
+        elif isinstance(message, SettingsMsg):
+            room.change_settings(member, message.mode, message.killLimit, message.timeLimitMin)
         else:
-            room.change_settings(member, message.killLimit, message.timeLimitMin)
+            room.change_team(member, message.team)
 
 
 @router.websocket("/ws/{code}")
