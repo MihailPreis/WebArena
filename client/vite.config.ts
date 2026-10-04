@@ -20,6 +20,9 @@ function gameRoute(): Plugin {
 
 export default defineConfig({
   plugins: [gameRoute()],
+  resolve: {
+    alias: { '@shared': resolve(import.meta.dirname, '../shared') },
+  },
   build: {
     rollupOptions: {
       input: {
@@ -31,6 +34,8 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // shared/ lives next to client/, outside the Vite root.
+    fs: { allow: ['..'] },
     proxy: {
       '/api': SERVER_URL,
       '/healthz': SERVER_URL,

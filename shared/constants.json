@@ -1,0 +1,22 @@
+{
+  "tickRate": 60,
+  "player": {
+    "halfWidth": 0.35,
+    "standHeight": 1.8,
+    "crouchHeight": 1.1,
+    "standEyeHeight": 1.6,
+    "crouchEyeHeight": 0.95,
+    "stepHeight": 0.4
+  },
+  "movement": {
+    "runSpeed": 7,
+    "sprintSpeed": 10,
+    "crouchSpeed": 3.5,
+    "groundAccel": 8,
+    "airAccel": 1.5,
+    "friction": 5,
+    "stopSpeed": 2,
+    "gravity": 20,
+    "jumpSpeed": 7
+  }
+}

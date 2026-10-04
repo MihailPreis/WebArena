@@ -1,0 +1,57 @@
+{
+  "name": "arena",
+  "killY": -20,
+  "blocks": [
+    { "min": [-21, -1, -21], "max": [21, 0, 21], "material": "floor" },
+
+    { "min": [-21, 0, -21], "max": [21, 5, -20], "material": "wall" },
+    { "min": [-21, 0, 20], "max": [21, 5, 21], "material": "wall" },
+    { "min": [-21, 0, -20], "max": [-20, 5, 20], "material": "wall" },
+    { "min": [20, 0, -20], "max": [21, 5, 20], "material": "wall" },
+
+    { "min": [-4, 0, -4], "max": [4, 2, 4], "material": "stone" },
+    { "min": [-1.5, 0, 7.5], "max": [1.5, 0.25, 8], "material": "stone" },
+    { "min": [-1.5, 0, 7], "max": [1.5, 0.5, 7.5], "material": "stone" },
+    { "min": [-1.5, 0, 6.5], "max": [1.5, 0.75, 7], "material": "stone" },
+    { "min": [-1.5, 0, 6], "max": [1.5, 1, 6.5], "material": "stone" },
+    { "min": [-1.5, 0, 5.5], "max": [1.5, 1.25, 6], "material": "stone" },
+    { "min": [-1.5, 0, 5], "max": [1.5, 1.5, 5.5], "material": "stone" },
+    { "min": [-1.5, 0, 4.5], "max": [1.5, 1.75, 5], "material": "stone" },
+    { "min": [-1.5, 0, 4], "max": [1.5, 2, 4.5], "material": "stone" },
+    { "min": [-1, 2, -1], "max": [1, 3, 1], "material": "crate" },
+
+    { "min": [-12.5, 0, -12], "max": [-11.5, 3, -2], "material": "wall" },
+    { "min": [-12.5, 1.3, -2], "max": [-11.5, 3, 0], "material": "wall" },
+    { "min": [-12.5, 0, 0], "max": [-11.5, 3, 12], "material": "wall" },
+
+    { "min": [8, 1.3, -14], "max": [16, 1.8, -8], "material": "metal" },
+    { "min": [8, 0, -14], "max": [9, 1.3, -13], "material": "metal" },
+    { "min": [15, 0, -14], "max": [16, 1.3, -13], "material": "metal" },
+    { "min": [8, 0, -9], "max": [9, 1.3, -8], "material": "metal" },
+    { "min": [15, 0, -9], "max": [16, 1.3, -8], "material": "metal" },
+    { "min": [16, 0, -12], "max": [17, 1, -11], "material": "crate" },
+
+    { "min": [9, 0, 7], "max": [11, 1, 9], "material": "crate" },
+    { "min": [11, 0, 7], "max": [13, 2, 9], "material": "crate" },
+    { "min": [11, 0, 9], "max": [12, 1, 10], "material": "crate" },
+    { "min": [-8, 0, 13], "max": [-7, 1, 14], "material": "crate" },
+    { "min": [-7, 0, 13], "max": [-5, 2, 15], "material": "crate" },
+    { "min": [-6, 0, -12], "max": [-5, 1, -11], "material": "crate" },
+    { "min": [3, 0, -10], "max": [5, 1, -8], "material": "crate" },
+
+    { "min": [-16, 0, -16], "max": [-14, 5, -14], "material": "metal" },
+    { "min": [14, 0, 14], "max": [16, 5, 16], "material": "metal" },
+    { "min": [-16, 0, 6], "max": [-15, 3, 7], "material": "stone" },
+    { "min": [5, 0, 13], "max": [6, 3, 18], "material": "wall" }
+  ],
+  "spawns": [
+    { "position": [-18, 0, -18], "yawDeg": -135 },
+    { "position": [18, 0, -18], "yawDeg": 135 },
+    { "position": [18, 0, 18], "yawDeg": 45 },
+    { "position": [-18, 0, 18], "yawDeg": -45 },
+    { "position": [0, 0, -16], "yawDeg": 180 },
+    { "position": [0, 0, 16], "yawDeg": 0 },
+    { "position": [-18, 0, 0], "yawDeg": -90 },
+    { "position": [18, 0, 0], "yawDeg": 90 }
+  ]
+}

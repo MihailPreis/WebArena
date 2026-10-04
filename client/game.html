@@ -5,8 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Arena</title>
   </head>
-  <body>
-    <main id="app"></main>
+  <body class="game">
+    <canvas id="view"></canvas>
+
+    <div id="hud" hidden>
+      <div id="crosshair"></div>
+      <div id="debug"></div>
+    </div>
+
+    <div id="overlay">
+      <div class="panel">
+        <h1 id="room-title">Arena</h1>
+        <p id="message"></p>
+        <button id="play" type="button" hidden>Играть</button>
+        <dl id="controls" hidden>
+          <dt>W A S D</dt>
+          <dd>движение</dd>
+          <dt>Мышь</dt>
+          <dd>обзор</dd>
+          <dt>Пробел</dt>
+          <dd>прыжок</dd>
+          <dt>Shift</dt>
+          <dd>бег</dd>
+          <dt>C</dt>
+          <dd>присесть</dd>
+          <dt>Esc</dt>
+          <dd>меню</dd>
+        </dl>
+        <label id="sensitivity-row" hidden>
+          Чувствительность мыши
+          <input id="sensitivity" type="range" step="0.05" />
+          <output id="sensitivity-value"></output>
+        </label>
+        <a href="/">На главную</a>
+      </div>
+    </div>
+
     <script type="module" src="/src/game/main.ts"></script>
   </body>
 </html>

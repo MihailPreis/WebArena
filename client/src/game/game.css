@@ -1,0 +1,115 @@
+body.game {
+  display: block;
+  overflow: hidden;
+  background: #000;
+}
+
+#view {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  image-rendering: pixelated;
+}
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  background: #fff;
+  outline: 1px solid #000;
+}
+
+#debug {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  font-size: 12px;
+  color: #cfc;
+  text-shadow: 1px 1px 0 #000;
+  white-space: pre;
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 6, 14, 0.72);
+}
+
+#overlay[hidden],
+#hud[hidden] {
+  display: none;
+}
+
+.panel {
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  max-width: 360px;
+  text-align: center;
+}
+
+.panel h1,
+.panel p {
+  margin: 0;
+}
+
+.panel p:empty {
+  display: none;
+}
+
+#play {
+  font: inherit;
+  font-size: 18px;
+  padding: 10px 32px;
+  color: #111;
+  background: #e6c35c;
+  border: 0;
+  cursor: pointer;
+}
+
+#play:hover {
+  background: #f4d77c;
+}
+
+#controls {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 16px;
+  margin: 0;
+  text-align: left;
+  font-size: 14px;
+}
+
+#controls[hidden],
+#sensitivity-row[hidden] {
+  display: none;
+}
+
+#controls dt {
+  color: #e6c35c;
+}
+
+#controls dd {
+  margin: 0;
+}
+
+#sensitivity-row {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  font-size: 14px;
+}
