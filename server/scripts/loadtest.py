@@ -84,7 +84,7 @@ async def bot(ws_base: str, code: str, token: str, seconds: float, intervals: li
                                 "r": rng.choice((-1, 0, 1)) if seq % 30 == 0 else 0,
                                 "j": seq % 70 == 0,
                                 "c": False,
-                                "s": seq % 200 < 100,
+                                "d": seq % 200 == 0,
                                 "yaw": yaw,
                                 "pitch": 0,
                                 "fire": seq % 3 == 0,

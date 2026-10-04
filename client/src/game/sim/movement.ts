@@ -12,6 +12,12 @@ export interface PlayerState {
   crouched: boolean;
   /** Jump was held on the previous tick; a new jump needs a fresh press. */
   jumpHeld: boolean;
+  /** Ticks until the next dash is allowed; right after a dash starts it is the full cooldown. */
+  dash: number;
+  /** Dash was held on the previous tick; a new dash needs a fresh press. */
+  dashHeld: boolean;
+  /** Crouch was held on the previous tick; a slide needs a fresh press. */
+  crouchHeld: boolean;
 }
 
 export interface InputCmd {
@@ -21,7 +27,7 @@ export interface InputCmd {
   right: number;
   jump: boolean;
   crouch: boolean;
-  sprint: boolean;
+  dash: boolean;
   yaw: number;
   pitch: number;
   // Not used by movement; carried here so one input describes everything the player did.
@@ -38,7 +44,23 @@ export function createPlayer(spawn: Spawn): PlayerState {
     onGround: false,
     crouched: false,
     jumpHeld: false,
+    dash: 0,
+    dashHeld: false,
+    crouchHeld: false,
   };
+}
+
+// The value of the dash counter at which the burst of speed is over.
+const DASH_END = MOVEMENT.dashCooldownTicks - MOVEMENT.dashTicks;
+
+/** Whether the tick that produced `state` was part of a dash. */
+export function isDashing(state: PlayerState): boolean {
+  return state.dash >= DASH_END;
+}
+
+/** How ready the dash is: 0 right after one, 1 when it can be used again. */
+export function dashReadiness(state: PlayerState): number {
+  return 1 - state.dash / MOVEMENT.dashCooldownTicks;
 }
 
 export function playerHeight(crouched: boolean): number {
@@ -166,15 +188,37 @@ export function stepPlayer(
     wishX /= wishLength;
     wishZ /= wishLength;
   }
-  let maxSpeed = MOVEMENT.runSpeed;
-  if (crouched) maxSpeed = MOVEMENT.crouchSpeed;
-  else if (cmd.sprint) maxSpeed = MOVEMENT.sprintSpeed;
+  const maxSpeed = crouched ? MOVEMENT.crouchSpeed : MOVEMENT.runSpeed;
   const wishSpeed = maxSpeed * Math.min(wishLength, 1);
+
+  let dash = prev.dash;
+  // Crouching on the move is a slide: the same dash, made crouched.
+  const slide = cmd.crouch && !prev.crouchHeld && wishLength > 0;
+  if (((cmd.dash && !prev.dashHeld) || slide) && dash === 0) {
+    dash = MOVEMENT.dashCooldownTicks;
+    // Along the keys held, or straight ahead when none is.
+    const dirX = wishLength > 0 ? wishX : -sin;
+    const dirZ = wishLength > 0 ? wishZ : -cos;
+    vel[0] = dirX * MOVEMENT.dashSpeed;
+    vel[2] = dirZ * MOVEMENT.dashSpeed;
+  }
+  const dashing = dash > DASH_END;
+  if (dash === DASH_END) {
+    // The dash has just ended: it moves the player, but leaves no extra speed behind.
+    const speed = Math.sqrt(vel[0] * vel[0] + vel[2] * vel[2]);
+    if (speed > maxSpeed) {
+      const scale = maxSpeed / speed;
+      vel[0] *= scale;
+      vel[2] *= scale;
+    }
+  }
 
   const jumped = prev.onGround && cmd.jump && !prev.jumpHeld;
   const grounded = prev.onGround && !jumped;
   if (jumped) vel[1] = MOVEMENT.jumpSpeed;
-  if (grounded) {
+  if (dashing) {
+    // Neither friction nor steering: the dash keeps the velocity it started with.
+  } else if (grounded) {
     applyFriction(vel, dt);
     accelerate(vel, wishX, wishZ, wishSpeed, MOVEMENT.groundAccel, dt);
   } else {
@@ -214,5 +258,16 @@ export function stepPlayer(
     }
   }
 
-  return { pos, vel, yaw: cmd.yaw, pitch: cmd.pitch, onGround, crouched, jumpHeld: cmd.jump };
+  return {
+    pos,
+    vel,
+    yaw: cmd.yaw,
+    pitch: cmd.pitch,
+    onGround,
+    crouched,
+    jumpHeld: cmd.jump,
+    dash: dash > 0 ? dash - 1 : 0,
+    dashHeld: cmd.dash,
+    crouchHeld: cmd.crouch,
+  };
 }

@@ -9,11 +9,15 @@ import { buildWorld } from './world';
 const TARGET_HEIGHT = 400;
 const FOG_COLOR = '#3a2440';
 const VERTICAL_FOV = 75;
+// How much wider the view gets at the peak of a dash, in degrees.
+const RUSH_FOV = 9;
 
 export interface View {
   eye: Vec3;
   yaw: number;
   pitch: number;
+  /** Sense of speed, 0 to 1: widens the field of view during a dash. */
+  rush: number;
 }
 
 export interface GameRenderer {
@@ -96,7 +100,12 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
       };
     },
     render(view, players, dt) {
-      sprites.update(players, view.eye);
+      sprites.update(players, view.eye, dt);
+      const fov = VERTICAL_FOV + RUSH_FOV * view.rush;
+      if (Math.abs(camera.fov - fov) > 0.01) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
       tracers.update(dt);
       camera.position.set(view.eye[0], view.eye[1], view.eye[2]);
       camera.rotation.set(view.pitch, view.yaw, 0);

@@ -73,6 +73,9 @@ export class Hud {
   private readonly playerCard = element('player-card');
   private readonly playerName = element('player-name');
   private readonly playerSub = element('player-sub');
+  private readonly dash = element('dash');
+  private readonly dashFill = element('dash-fill');
+  private readonly rush = element('rush');
   private readonly weaponCard = element('weapon-card');
   private readonly ammo = element('ammo');
   private readonly ammoMax = element('ammo-max');
@@ -103,6 +106,7 @@ export class Hud {
   private readonly floaters = new Set<{ root: HTMLElement; pos: Vec3 }>();
   private hitTimer = 0;
   private hp = -1;
+  private dashShown = -1;
   private ammoKey = '';
   private matchKey = '';
   private headingShown = '';
@@ -146,6 +150,24 @@ export class Hud {
         ],
         260,
       );
+    }
+  }
+
+  /** How ready the dash is, from 0 right after one to 1. */
+  setDash(readiness: number): void {
+    const shown = Math.round(readiness * 100);
+    if (shown === this.dashShown) return;
+    this.dashShown = shown;
+    this.dashFill.style.width = `${shown}%`;
+    this.dash.classList.toggle('ready', shown >= 100);
+  }
+
+  /** The player's own dash or slide has started: streaks at the edges and a jolt of the cards. */
+  dashed(): void {
+    if (this.still) return;
+    this.rush.animate([{ opacity: 0.9 }, { opacity: 0 }], { duration: 320, easing: 'ease-out' });
+    for (const card of [this.playerCard, this.weaponCard]) {
+      this.bump(card, [{ transform: 'scale(0.94)' }, { transform: 'scale(1)' }], 260);
     }
   }
 

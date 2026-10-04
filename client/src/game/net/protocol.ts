@@ -36,6 +36,7 @@ export interface RemoteState {
   pos: Vec3;
   yaw: number;
   crouched: boolean;
+  dashing: boolean;
 }
 
 /** The private part of the player's own state. */
@@ -124,7 +125,7 @@ export type ClientMessage =
       r: number;
       j: boolean;
       c: boolean;
-      s: boolean;
+      d: boolean;
       yaw: number;
       pitch: number;
       fire: boolean;
@@ -144,7 +145,7 @@ export function inputMessage(seq: number, cmd: InputCmd, renderTime: number): Cl
     r: cmd.right,
     j: cmd.jump,
     c: cmd.crouch,
-    s: cmd.sprint,
+    d: cmd.dash,
     yaw: cmd.yaw,
     pitch: cmd.pitch,
     fire: cmd.fire,

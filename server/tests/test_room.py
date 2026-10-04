@@ -104,6 +104,8 @@ def test_tick_simulates_inputs_and_acknowledges_them() -> None:
     assert snapshot["tick"] == room.tick_no == 30
     assert snapshot["players"] == []
     assert snapshot["you"]["onGround"] is True
+    # The client predicts from this state, so it needs every field of the simulation.
+    assert {"dash", "dashHeld", "crouchHeld"} <= set(snapshot["you"])
     assert snapshot["you"]["pos"][2] < start[2] - 0.5
 
 
@@ -117,7 +119,7 @@ def test_snapshot_shows_other_players_without_secrets() -> None:
     (seen,) = alice.last("snapshot")["players"]
     assert seen["id"] == "b2"
     assert seen["pos"] == list(other.state.pos)
-    assert set(seen) == {"id", "pos", "yaw", "crouched"}
+    assert set(seen) == {"id", "pos", "yaw", "crouched", "dashing"}
     assert "token" not in json.dumps(alice.sent)
 
 

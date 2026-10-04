@@ -53,6 +53,19 @@ body.game {
   box-shadow: inset 0 0 160px 40px rgba(220, 30, 20, 0.75);
 }
 
+/* Streaks at the edges of the screen during a dash; scripts fade them in and out. */
+#rush {
+  position: absolute;
+  inset: -20%;
+  opacity: 0;
+  background: repeating-conic-gradient(
+    from 0deg at 50% 50%,
+    rgba(244, 241, 234, 0.5) 0deg 0.6deg,
+    transparent 0.6deg 5deg
+  );
+  mask-image: radial-gradient(closest-side, transparent 58%, #000 100%);
+}
+
 #vignette.flash {
   animation: fade-out 0.5s ease-out;
 }
@@ -562,6 +575,44 @@ body.game {
   to {
     opacity: 0.45;
   }
+}
+
+#dash {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  font-size: 0.94em;
+  font-weight: 700;
+  color: var(--ink-dim);
+}
+
+#dash kbd {
+  padding: 0 0.45em;
+  font: inherit;
+  color: var(--ink-dim);
+  background: rgba(10, 12, 18, 0.7);
+  text-shadow: none;
+}
+
+#dash-bar {
+  width: 7em;
+  height: 0.4em;
+  background: rgba(10, 12, 18, 0.7);
+  transform: skewX(var(--skew));
+}
+
+#dash-fill {
+  height: 100%;
+  background: var(--ink-dim);
+}
+
+#dash.ready kbd {
+  color: var(--bg-deep);
+  background: var(--ink);
+}
+
+#dash.ready #dash-fill {
+  background: var(--accent);
 }
 
 #weapon-name {

@@ -9,8 +9,10 @@
     "stepHeight": 0.4
   },
   "movement": {
-    "runSpeed": 7,
-    "sprintSpeed": 10,
+    "runSpeed": 9,
+    "dashSpeed": 22,
+    "dashTicks": 12,
+    "dashCooldownTicks": 90,
     "crouchSpeed": 3.5,
     "groundAccel": 8,
     "airAccel": 1.5,
@@ -57,7 +59,7 @@
     }
   },
   "net": {
-    "protocolVersion": 4,
+    "protocolVersion": 5,
     "snapshotRate": 30,
     "interpolationDelayMs": 100,
     "maxInputBurst": 20,

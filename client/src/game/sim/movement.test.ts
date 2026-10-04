@@ -4,7 +4,14 @@ import { overlapsAny } from './collision';
 import { MOVEMENT, PLAYER, TICK_DT } from './constants';
 import { FixedStep } from './fixedStep';
 import { parseMap, type Block, type GameMap, type Vec3 } from './map';
-import { createPlayer, stepPlayer, type InputCmd, type PlayerState } from './movement';
+import {
+  createPlayer,
+  dashReadiness,
+  isDashing,
+  stepPlayer,
+  type InputCmd,
+  type PlayerState,
+} from './movement';
 
 const FLOOR: Block = { min: [-50, -1, -50], max: [50, 0, 50], material: 'floor' };
 
@@ -23,7 +30,7 @@ function cmd(overrides: Partial<InputCmd> = {}): InputCmd {
     right: 0,
     jump: false,
     crouch: false,
-    sprint: false,
+    dash: false,
     yaw: 0,
     pitch: 0,
     fire: false,
@@ -57,13 +64,6 @@ describe('ground movement', () => {
     expect(state.pos[0]).toBeCloseTo(0, 6);
   });
 
-  it('sprints faster in any direction', () => {
-    const forward = run(spawnAt([0, 0, 0], map), map, cmd({ forward: 1, sprint: true }), 2);
-    expect(speed(forward)).toBeCloseTo(MOVEMENT.sprintSpeed, 6);
-    const sideways = run(spawnAt([0, 0, 0], map), map, cmd({ right: 1, sprint: true }), 2);
-    expect(speed(sideways)).toBeCloseTo(MOVEMENT.sprintSpeed, 6);
-  });
-
   it('does not move faster diagonally', () => {
     const state = run(spawnAt([0, 0, 0], map), map, cmd({ forward: 1, right: 1 }), 2);
     expect(speed(state)).toBeCloseTo(MOVEMENT.runSpeed, 6);
@@ -79,6 +79,96 @@ describe('ground movement', () => {
     let state = run(spawnAt([0, 0, 0], map), map, cmd({ forward: 1 }), 1);
     state = run(state, map, cmd(), 1);
     expect(speed(state)).toBe(0);
+  });
+});
+
+describe('dashing', () => {
+  const map = makeMap();
+  const tick = (state: PlayerState, input: InputCmd) => stepPlayer(state, input, map, TICK_DT);
+  const length = MOVEMENT.dashSpeed * MOVEMENT.dashTicks * TICK_DT;
+
+  it('covers a fixed distance along the keys held', () => {
+    let state = tick(spawnAt([0, 0, 0], map), cmd({ right: 1, dash: true }));
+    expect(isDashing(state)).toBe(true);
+    for (let i = 1; i < MOVEMENT.dashTicks; i++) state = tick(state, cmd());
+    expect(state.pos[0]).toBeCloseTo(length, 6);
+    expect(state.pos[2]).toBeCloseTo(0, 6);
+    expect(isDashing(tick(state, cmd()))).toBe(false);
+  });
+
+  it('goes straight ahead when no key is held', () => {
+    let state = tick(spawnAt([0, 0, 0], map), cmd({ dash: true, yaw: Math.PI / 2 }));
+    state = run(state, map, cmd({ yaw: Math.PI / 2 }), 1);
+    expect(state.pos[0]).toBeLessThan(-length);
+    expect(state.pos[2]).toBeCloseTo(0, 6);
+  });
+
+  it('leaves no more than run speed behind', () => {
+    let state = tick(spawnAt([0, 0, 0], map), cmd({ forward: 1, dash: true }));
+    for (let i = 0; i < MOVEMENT.dashTicks; i++) state = tick(state, cmd({ forward: 1 }));
+    expect(speed(state)).toBeLessThanOrEqual(MOVEMENT.runSpeed + 1e-9);
+  });
+
+  it('needs a fresh press and the cooldown to pass', () => {
+    let state = spawnAt([0, 0, 0], map);
+    let dashes = 0;
+    for (let i = 0; i < MOVEMENT.dashCooldownTicks * 3; i++) {
+      const next = tick(state, cmd({ dash: true }));
+      if (next.dash > state.dash) dashes++;
+      state = next;
+    }
+    expect(dashes).toBe(1);
+
+    state = tick(spawnAt([0, 0, 0], map), cmd({ dash: true }));
+    state = tick(state, cmd());
+    const early = tick(state, cmd({ dash: true }));
+    expect(early.dash).toBeLessThan(state.dash);
+    expect(dashReadiness(early)).toBeLessThan(1);
+
+    state = run(early, map, cmd(), (MOVEMENT.dashCooldownTicks * TICK_DT) as number);
+    expect(dashReadiness(state)).toBe(1);
+    expect(isDashing(tick(state, cmd({ dash: true })))).toBe(true);
+  });
+
+  it('starts as a slide when crouch is pressed on the move', () => {
+    let state = run(spawnAt([0, 0, 0], map), map, cmd({ forward: 1 }), 0.5);
+    const before = state.pos[2];
+    state = tick(state, cmd({ forward: 1, crouch: true }));
+    expect(isDashing(state)).toBe(true);
+    expect(state.crouched).toBe(true);
+    for (let i = 1; i < MOVEMENT.dashTicks; i++)
+      state = tick(state, cmd({ forward: 1, crouch: true }));
+    expect(before - state.pos[2]).toBeCloseTo(length, 6);
+    state = run(state, map, cmd({ forward: 1, crouch: true }), 0.5);
+    expect(speed(state)).toBeCloseTo(MOVEMENT.crouchSpeed, 6);
+  });
+
+  it('does not slide when crouching on the spot or while the dash recovers', () => {
+    const still = tick(spawnAt([0, 0, 0], map), cmd({ crouch: true }));
+    expect(isDashing(still)).toBe(false);
+
+    let state = tick(spawnAt([0, 0, 0], map), cmd({ forward: 1, dash: true }));
+    state = run(state, map, cmd({ forward: 1 }), 0.5);
+    state = tick(state, cmd({ forward: 1, crouch: true }));
+    expect(isDashing(state)).toBe(false);
+    expect(state.crouched).toBe(true);
+  });
+
+  it('works in the air', () => {
+    let state = tick(spawnAt([0, 0, 0], map), cmd({ jump: true }));
+    state = run(state, map, cmd(), 0.1);
+    expect(state.onGround).toBe(false);
+    const before = state.pos[2];
+    state = tick(state, cmd({ forward: 1, dash: true }));
+    for (let i = 1; i < MOVEMENT.dashTicks; i++) state = tick(state, cmd());
+    expect(before - state.pos[2]).toBeCloseTo(length, 6);
+  });
+
+  it('is stopped by a wall', () => {
+    const walled = makeMap({ min: [-50, 0, -3], max: [50, 4, -2], material: 'wall' });
+    let state = stepPlayer(spawnAt([0, 0, 0], walled), cmd({ dash: true }), walled, TICK_DT);
+    state = run(state, walled, cmd(), 0.5);
+    expect(state.pos[2]).toBeCloseTo(-2 + PLAYER.halfWidth, 4);
   });
 });
 
@@ -127,7 +217,7 @@ describe('collisions', () => {
 
   it('walks up a low step', () => {
     const map = makeMap({ min: [-5, 0, -10], max: [5, 0.3, -3], material: 'stone' });
-    const state = run(spawnAt([0, 0, 0], map), map, cmd({ forward: 1 }), 1.5);
+    const state = run(spawnAt([0, 0, 0], map), map, cmd({ forward: 1 }), 1);
     expect(state.pos[1]).toBeCloseTo(0.3, 6);
     expect(state.pos[2]).toBeLessThan(-4);
     expect(state.onGround).toBe(true);
@@ -144,7 +234,7 @@ describe('collisions', () => {
     const map = makeMap({ min: [-5, 0, -10], max: [5, 1, -3], material: 'crate' });
     let state = run(spawnAt([0, 0, 0], map), map, cmd({ forward: 1 }), 0.3);
     state = stepPlayer(state, cmd({ forward: 1, jump: true }), map, TICK_DT);
-    state = run(state, map, cmd({ forward: 1 }), 1.5);
+    state = run(state, map, cmd({ forward: 1 }), 0.8);
     expect(state.pos[1]).toBeCloseTo(1, 6);
     expect(state.onGround).toBe(true);
   });
@@ -169,8 +259,8 @@ describe('crouching', () => {
   // A slab with a 1.3 m gap under it: too low to walk under, high enough to crawl under.
   const map = makeMap({ min: [-5, 1.3, -8], max: [5, 2, -3], material: 'metal' });
 
-  it('moves slower, even with sprint held', () => {
-    const input = cmd({ forward: 1, crouch: true, sprint: true });
+  it('moves slower once the slide is over', () => {
+    const input = cmd({ forward: 1, crouch: true, dash: true });
     const state = run(spawnAt([0, 0, 20], map), map, input, 2);
     expect(speed(state)).toBeCloseTo(MOVEMENT.crouchSpeed, 6);
   });
@@ -181,7 +271,7 @@ describe('crouching', () => {
   });
 
   it('crawls under it and cannot stand up until clear', () => {
-    let state = run(spawnAt([0, 0, 0], map), map, cmd({ forward: 1, crouch: true }), 1.5);
+    let state = run(spawnAt([0, 0, 0], map), map, cmd({ forward: 1, crouch: true }), 1);
     expect(state.pos[2]).toBeLessThan(-3.5);
     expect(state.pos[2]).toBeGreaterThan(-7.5);
 
@@ -212,7 +302,7 @@ describe('fixed timestep', () => {
     const slow = simulate(60);
     const fast = simulate(144);
     // The two runs may differ by one tick that has not been simulated yet.
-    const oneTick = MOVEMENT.sprintSpeed * TICK_DT + 1e-6;
+    const oneTick = MOVEMENT.runSpeed * TICK_DT + 1e-6;
     expect(Math.abs(slow.pos[0] - fast.pos[0])).toBeLessThanOrEqual(oneTick);
     expect(Math.abs(slow.pos[2] - fast.pos[2])).toBeLessThanOrEqual(oneTick);
     expect(fast.pos[1]).toBeCloseTo(slow.pos[1], 6);

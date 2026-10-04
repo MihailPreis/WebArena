@@ -36,7 +36,7 @@ def test_movement_matches_client(case: dict[str, Any]) -> None:
             right=raw["right"],
             jump=raw["jump"],
             crouch=raw["crouch"],
-            sprint=raw["sprint"],
+            dash=raw["dash"],
             yaw=radians(raw["yawDeg"]),
             pitch=raw["pitch"],
         )
@@ -44,5 +44,6 @@ def test_movement_matches_client(case: dict[str, Any]) -> None:
             state = step_player(state, cmd, game_map, TICK_DT)
         assert state.on_ground == want["onGround"], f"segment {i}"
         assert state.crouched == want["crouched"], f"segment {i}"
+        assert state.dash == want["dash"], f"segment {i} dash"
         assert state.pos == pytest.approx(want["pos"], abs=TOLERANCE), f"segment {i} pos"
         assert state.vel == pytest.approx(want["vel"], abs=TOLERANCE), f"segment {i} vel"

@@ -44,7 +44,7 @@ class InputMsg(_ClientModel):
     r: Annotated[float, Field(ge=-1, le=1, strict=False)]
     j: bool
     c: bool
-    s: bool
+    d: bool
     yaw: Annotated[float, Field(ge=-7, le=7, strict=False)]
     pitch: Annotated[float, Field(ge=-1.6, le=1.6, strict=False)]
     fire: bool
@@ -58,7 +58,7 @@ class InputMsg(_ClientModel):
             right=self.r,
             jump=self.j,
             crouch=self.c,
-            sprint=self.s,
+            dash=self.d,
             yaw=self.yaw,
             pitch=self.pitch,
             fire=self.fire,
@@ -107,4 +107,7 @@ def state_json(state: PlayerState) -> dict[str, Any]:
         "onGround": state.on_ground,
         "crouched": state.crouched,
         "jumpHeld": state.jump_held,
+        "dash": state.dash,
+        "dashHeld": state.dash_held,
+        "crouchHeld": state.crouch_held,
     }

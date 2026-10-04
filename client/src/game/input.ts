@@ -84,7 +84,7 @@ export class Input {
       right: axis('KeyD', 'KeyA'),
       jump: this.keys.has('Space'),
       crouch: this.keys.has('KeyC'),
-      sprint: this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'),
+      dash: this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'),
       yaw: this.yaw,
       pitch: this.pitch,
       fire: this.firing,

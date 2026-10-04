@@ -6,6 +6,10 @@ import { FRAME_COUNT, paintNameTag, paintPlayerAtlas } from './playerSprite';
 const SPRITE_WIDTH = 0.9;
 const NAME_HEIGHT = 0.36;
 const NAME_GAP = 0.15;
+// A dashing player leaves fading copies of the sprite behind.
+const GHOST_INTERVAL_S = 0.03;
+const GHOST_LIFE_S = 0.28;
+const GHOST_OPACITY = 0.5;
 
 export interface RenderPlayer {
   id: string;
@@ -20,6 +24,7 @@ export interface RenderPlayer {
   crouched: boolean;
   /** Whether the name floats over the player in the world. */
   nameTag: boolean;
+  dashing: boolean;
 }
 
 interface Entry {
@@ -28,6 +33,13 @@ interface Entry {
   accent: string | null;
   body: Sprite;
   tag: Sprite;
+  /** Seconds until the next ghost may be left behind. */
+  ghostIn: number;
+}
+
+interface Ghost {
+  sprite: Sprite;
+  age: number;
 }
 
 function pixelTexture(canvas: HTMLCanvasElement): CanvasTexture {
@@ -43,8 +55,11 @@ function pixelTexture(canvas: HTMLCanvasElement): CanvasTexture {
 export class PlayerSprites {
   readonly group = new Group();
   private readonly entries = new Map<string, Entry>();
+  private readonly ghosts: Ghost[] = [];
 
-  update(players: readonly RenderPlayer[], camera: Vec3): void {
+  /** `dt` is the time since the previous frame, in seconds. */
+  update(players: readonly RenderPlayer[], camera: Vec3, dt: number): void {
+    this.fadeGhosts(dt);
     const seen = new Set<string>();
     for (const player of players) {
       seen.add(player.id);
@@ -74,6 +89,12 @@ export class PlayerSprites {
       const height = player.crouched ? PLAYER.crouchHeight : PLAYER.standHeight;
       entry.tag.position.set(x, y + height + NAME_GAP, z);
       entry.tag.visible = player.nameTag;
+
+      entry.ghostIn -= dt;
+      if (player.dashing && entry.ghostIn <= 0) {
+        entry.ghostIn = GHOST_INTERVAL_S;
+        this.leaveGhost(entry.body);
+      }
     }
     for (const [id, entry] of this.entries) {
       if (!seen.has(id)) this.remove(id, entry);
@@ -93,7 +114,38 @@ export class PlayerSprites {
     tag.scale.set((NAME_HEIGHT * tagCanvas.width) / tagCanvas.height, NAME_HEIGHT, 1);
 
     this.group.add(body, tag);
-    return { name: player.name, color: player.color, accent: player.accent, body, tag };
+    return { name: player.name, color: player.color, accent: player.accent, body, tag, ghostIn: 0 };
+  }
+
+  /** A copy of the sprite as it looks right now, which stays in place and fades out. */
+  private leaveGhost(body: Sprite): void {
+    // The copy needs its own texture transform: the body keeps changing its frame.
+    const map = body.material.map?.clone() ?? null;
+    const sprite = new Sprite(
+      new SpriteMaterial({ map, transparent: true, opacity: GHOST_OPACITY, depthWrite: false }),
+    );
+    sprite.center.copy(body.center);
+    sprite.scale.copy(body.scale);
+    sprite.position.copy(body.position);
+    this.group.add(sprite);
+    this.ghosts.push({ sprite, age: 0 });
+  }
+
+  private fadeGhosts(dt: number): void {
+    for (let i = this.ghosts.length - 1; i >= 0; i--) {
+      const ghost = this.ghosts[i];
+      if (!ghost) continue;
+      ghost.age += dt;
+      if (ghost.age < GHOST_LIFE_S) {
+        ghost.sprite.material.opacity = GHOST_OPACITY * (1 - ghost.age / GHOST_LIFE_S);
+        continue;
+      }
+      this.group.remove(ghost.sprite);
+      // The cloned texture shares its image with the body; only the clone is released.
+      ghost.sprite.material.map?.dispose();
+      ghost.sprite.material.dispose();
+      this.ghosts.splice(i, 1);
+    }
   }
 
   private remove(id: string, entry: Entry): void {

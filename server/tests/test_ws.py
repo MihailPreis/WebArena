@@ -67,7 +67,7 @@ def test_inputs_are_acknowledged_in_snapshots(api: TestClient) -> None:
         receive(ws, "welcome")
         for seq in range(4):
             ws.send_json(
-                {"t": "input", "seq": seq, "f": 1, "r": 0, "j": False, "c": False, "s": False,
+                {"t": "input", "seq": seq, "f": 1, "r": 0, "j": False, "c": False, "d": False,
                  "yaw": 0.5, "pitch": 0, "fire": False, "reload": False, "rt": 0}
             )  # fmt: skip
         for _ in range(200):
@@ -118,11 +118,11 @@ def test_connection_is_refused_with_a_reason(api: TestClient) -> None:
 @pytest.mark.parametrize(
     "message",
     [
-        {"t": "input", "seq": 0, "f": 5, "r": 0, "j": False, "c": False, "s": False,
+        {"t": "input", "seq": 0, "f": 5, "r": 0, "j": False, "c": False, "d": False,
          "yaw": 0, "pitch": 0, "fire": False, "reload": False, "rt": 0},
-        {"t": "input", "seq": -1, "f": 0, "r": 0, "j": False, "c": False, "s": False,
+        {"t": "input", "seq": -1, "f": 0, "r": 0, "j": False, "c": False, "d": False,
          "yaw": 0, "pitch": 0, "fire": False, "reload": False, "rt": 0},
-        {"t": "input", "seq": 0, "f": 0, "r": 0, "j": "yes", "c": False, "s": False,
+        {"t": "input", "seq": 0, "f": 0, "r": 0, "j": "yes", "c": False, "d": False,
          "yaw": 0, "pitch": 0, "fire": False, "reload": False, "rt": 0},
         {"t": "teleport", "pos": [0, 0, 0]},
         {"t": "ping"},

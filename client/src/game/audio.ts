@@ -81,6 +81,12 @@ export class GameAudio {
     this.burst(at, { volume: at ? 0.5 : 0.18, duration: 0.07, filter: 500 });
   }
 
+  /** A rush of air: a dash or a slide. */
+  dash(at: Vec3 | null): void {
+    this.burst(at, { volume: at ? 0.7 : 0.35, duration: 0.22, filter: 900 });
+    this.tone(at, { from: 140, to: 320, duration: 0.14, volume: 0.12, type: 'sine' });
+  }
+
   reload(): void {
     this.burst(null, { volume: 0.25, duration: 0.05, filter: 3000 });
     this.tone(null, { from: 700, to: 500, duration: 0.05, volume: 0.2, type: 'square' });

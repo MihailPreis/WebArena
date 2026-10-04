@@ -18,7 +18,7 @@ interface Segment {
     right: number;
     jump: boolean;
     crouch: boolean;
-    sprint: boolean;
+    dash: boolean;
     yawDeg: number;
     pitch: number;
   };
@@ -29,6 +29,8 @@ interface Expected {
   vel: Vec3;
   onGround: boolean;
   crouched: boolean;
+  /** The dash counter: ticks until the next dash is allowed. */
+  dash: number;
 }
 
 interface Case {
@@ -51,7 +53,13 @@ function simulate(testCase: Case): Expected[] {
   return testCase.segments.map(({ ticks, cmd }) => {
     const input = { ...cmd, yaw: radians(cmd.yawDeg), fire: false, reload: false };
     for (let i = 0; i < ticks; i++) state = stepPlayer(state, input, arena, TICK_DT);
-    return { pos: state.pos, vel: state.vel, onGround: state.onGround, crouched: state.crouched };
+    return {
+      pos: state.pos,
+      vel: state.vel,
+      onGround: state.onGround,
+      crouched: state.crouched,
+      dash: state.dash,
+    };
   });
 }
 
@@ -70,6 +78,7 @@ describe('movement vectors', () => {
       if (!want) throw new Error(`segment ${i} has no expectation`);
       expect(state.onGround, `segment ${i} onGround`).toBe(want.onGround);
       expect(state.crouched, `segment ${i} crouched`).toBe(want.crouched);
+      expect(state.dash, `segment ${i} dash`).toBe(want.dash);
       for (const axis of [0, 1, 2] as const) {
         expect(Math.abs(state.pos[axis] - want.pos[axis])).toBeLessThanOrEqual(TOLERANCE);
         expect(Math.abs(state.vel[axis] - want.vel[axis])).toBeLessThanOrEqual(TOLERANCE);

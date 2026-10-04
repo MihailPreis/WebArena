@@ -16,7 +16,7 @@ function cmd(overrides: Partial<InputCmd> = {}): InputCmd {
     right: 0,
     jump: false,
     crouch: false,
-    sprint: false,
+    dash: false,
     yaw: 0,
     pitch: 0,
     fire: false,
@@ -126,7 +126,7 @@ describe('Prediction of the weapon and of death', () => {
 
 describe('RemoteInterpolator', () => {
   const at = (x: number, yaw = 0) => [
-    { id: 'p', pos: [x, 0, 0] as [number, number, number], yaw, crouched: false },
+    { id: 'p', pos: [x, 0, 0] as [number, number, number], yaw, crouched: false, dashing: false },
   ];
 
   it('renders players in the past, between two snapshots', () => {

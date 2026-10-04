@@ -12,6 +12,7 @@ interface Sample {
   pos: Vec3;
   yaw: number;
   crouched: boolean;
+  dashing: boolean;
 }
 
 export interface InterpolatedPlayer {
@@ -19,6 +20,7 @@ export interface InterpolatedPlayer {
   pos: Vec3;
   yaw: number;
   crouched: boolean;
+  dashing: boolean;
 }
 
 function lerpAngle(from: number, to: number, alpha: number): number {
@@ -57,6 +59,7 @@ export class RemoteInterpolator {
         pos: player.pos,
         yaw: player.yaw,
         crouched: player.crouched,
+        dashing: player.dashing,
       });
       while (samples.length > 2 && (samples[0]?.time ?? 0) < serverTime - HISTORY_S) {
         samples.shift();
@@ -113,6 +116,7 @@ export class RemoteInterpolator {
         pos: [lerp(0), lerp(1), lerp(2)],
         yaw: lerpAngle(from.yaw, to.yaw, alpha),
         crouched: alpha < 0.5 ? from.crouched : to.crouched,
+        dashing: from.dashing || to.dashing,
       });
     }
     return result;

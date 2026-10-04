@@ -24,7 +24,11 @@ CROUCH_HEIGHT: float = _PLAYER["crouchHeight"]
 STEP_HEIGHT: float = _PLAYER["stepHeight"]
 
 RUN_SPEED: float = _MOVEMENT["runSpeed"]
-SPRINT_SPEED: float = _MOVEMENT["sprintSpeed"]
+DASH_SPEED: float = _MOVEMENT["dashSpeed"]
+DASH_TICKS: int = _MOVEMENT["dashTicks"]
+DASH_COOLDOWN_TICKS: int = _MOVEMENT["dashCooldownTicks"]
+# The value of the dash counter at which the burst of speed is over.
+DASH_END: int = DASH_COOLDOWN_TICKS - DASH_TICKS
 CROUCH_SPEED: float = _MOVEMENT["crouchSpeed"]
 GROUND_ACCEL: float = _MOVEMENT["groundAccel"]
 AIR_ACCEL: float = _MOVEMENT["airAccel"]
@@ -45,6 +49,12 @@ class PlayerState:
     crouched: bool
     jump_held: bool
     """Jump was held on the previous tick; a new jump needs a fresh press."""
+    dash: int = 0
+    """Ticks until the next dash is allowed; right after a dash starts it is the full cooldown."""
+    dash_held: bool = False
+    """Dash was held on the previous tick; a new dash needs a fresh press."""
+    crouch_held: bool = False
+    """Crouch was held on the previous tick; a slide needs a fresh press."""
 
 
 @dataclass(frozen=True)
@@ -53,7 +63,7 @@ class InputCmd:
     right: float
     jump: bool
     crouch: bool
-    sprint: bool
+    dash: bool
     yaw: float
     pitch: float
     # Not used by movement; carried here so one input describes everything the player did.
@@ -70,7 +80,15 @@ def create_player(spawn: Spawn) -> PlayerState:
         on_ground=False,
         crouched=False,
         jump_held=False,
+        dash=0,
+        dash_held=False,
+        crouch_held=False,
     )
+
+
+def is_dashing(state: PlayerState) -> bool:
+    """Whether the tick that produced `state` was part of a dash."""
+    return state.dash >= DASH_END
 
 
 def _bounds(pos: Sequence[float], height: float) -> tuple[list[float], list[float]]:
@@ -166,18 +184,36 @@ def step_player(prev: PlayerState, cmd: InputCmd, game_map: GameMap, dt: float) 
     if wish_length > 0:
         wish_x /= wish_length
         wish_z /= wish_length
-    max_speed = RUN_SPEED
-    if crouched:
-        max_speed = CROUCH_SPEED
-    elif cmd.sprint:
-        max_speed = SPRINT_SPEED
+    max_speed = CROUCH_SPEED if crouched else RUN_SPEED
     wish_speed = max_speed * min(wish_length, 1.0)
+
+    dash = prev.dash
+    # Crouching on the move is a slide: the same dash, made crouched.
+    slide = cmd.crouch and not prev.crouch_held and wish_length > 0
+    if ((cmd.dash and not prev.dash_held) or slide) and dash == 0:
+        dash = DASH_COOLDOWN_TICKS
+        # Along the keys held, or straight ahead when none is.
+        dir_x = wish_x if wish_length > 0 else -sin
+        dir_z = wish_z if wish_length > 0 else -cos
+        vel[0] = dir_x * DASH_SPEED
+        vel[2] = dir_z * DASH_SPEED
+    dashing = dash > DASH_END
+    if dash == DASH_END:
+        # The dash has just ended: it moves the player, but leaves no extra speed behind.
+        speed = math.sqrt(vel[0] * vel[0] + vel[2] * vel[2])
+        if speed > max_speed:
+            scale = max_speed / speed
+            vel[0] *= scale
+            vel[2] *= scale
 
     jumped = prev.on_ground and cmd.jump and not prev.jump_held
     grounded = prev.on_ground and not jumped
     if jumped:
         vel[1] = JUMP_SPEED
-    if grounded:
+    if dashing:
+        # Neither friction nor steering: the dash keeps the velocity it started with.
+        pass
+    elif grounded:
         _apply_friction(vel, dt)
         _accelerate(vel, wish_x, wish_z, wish_speed, GROUND_ACCEL, dt)
     else:
@@ -223,4 +259,7 @@ def step_player(prev: PlayerState, cmd: InputCmd, game_map: GameMap, dt: float) 
         on_ground=on_ground,
         crouched=crouched,
         jump_held=cmd.jump,
+        dash=dash - 1 if dash > 0 else 0,
+        dash_held=cmd.dash,
+        crouch_held=cmd.crouch,
     )

@@ -13,7 +13,14 @@ from arena.db.players import Player
 from arena.game.combat import Target, aim_direction, eye_position, trace_shot
 from arena.game.map import GameMap, Vec3
 from arena.game.modes import MODES, TEAMS
-from arena.game.movement import TICK_DT, InputCmd, PlayerState, create_player, step_player
+from arena.game.movement import (
+    TICK_DT,
+    InputCmd,
+    PlayerState,
+    create_player,
+    is_dashing,
+    step_player,
+)
 from arena.game.results import MatchResult, PlayerResult
 from arena.game.weapon import WeaponState, step_weapon
 from arena.net.protocol import PROTOCOL_VERSION, CloseCode, encode, state_json
@@ -319,6 +326,7 @@ class Room:
                 "pos": [round(axis, 3) for axis in member.state.pos],
                 "yaw": round(member.state.yaw, 3),
                 "crouched": member.state.crouched,
+                "dashing": is_dashing(member.state),
             }
             for member in connected
             if member.alive

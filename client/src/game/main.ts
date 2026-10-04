@@ -39,7 +39,7 @@ import {
 import { PLAYER, TICK_DT } from './sim/constants';
 import { FixedStep } from './sim/fixedStep';
 import { parseMap, type Vec3 } from './sim/map';
-import type { InputCmd } from './sim/movement';
+import { dashReadiness, type InputCmd } from './sim/movement';
 import { aimDirection, shotEnd } from './sim/ray';
 import { WEAPON } from './sim/weapon';
 import { ViewSmoother } from './view';
@@ -372,6 +372,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     yaw: number;
     crouched: boolean;
     nameTag: boolean;
+    dashing: boolean;
   })[] = [];
   // Who killed the player, or a plain explanation when nobody did.
   let deathCause: NamedPlayer | string = '';
@@ -379,7 +380,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
   let stride = 0;
   let nextStep = STEP_DISTANCE;
   let wasReloading = false;
-  const remoteSteps = new Map<string, { pos: Vec3; walked: number }>();
+  const remoteSteps = new Map<string, { pos: Vec3; walked: number; dashing: boolean }>();
 
   function eyeOf(pos: Vec3, crouched: boolean): Vec3 {
     return [pos[0], pos[1] + (crouched ? PLAYER.crouchEyeHeight : PLAYER.standEyeHeight), pos[2]];
@@ -413,9 +414,11 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     for (const other of others) {
       const track = remoteSteps.get(other.id);
       if (!track) {
-        remoteSteps.set(other.id, { pos: other.pos, walked: 0 });
+        remoteSteps.set(other.id, { pos: other.pos, walked: 0, dashing: other.dashing });
         continue;
       }
+      if (other.dashing && !track.dashing) audio.dash(other.pos);
+      track.dashing = other.dashing;
       const moved = Math.hypot(other.pos[0] - track.pos[0], other.pos[2] - track.pos[2]);
       // Falling, jumping and respawning are not steps.
       const level = Math.abs(other.pos[1] - track.pos[1]) < 0.02;
@@ -486,6 +489,11 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
       const { seq, fired } = prediction.step(cmd);
       connection.sendInput(seq, cmd, renderTime);
       if (fired) fire(cmd);
+      // The counter only goes up when a dash or a slide starts.
+      if (prediction.current.dash > prediction.previous.dash) {
+        hud.dashed();
+        audio.dash(null);
+      }
       footsteps();
     }
     remoteFootsteps();
@@ -519,6 +527,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
       COMBAT.respawnDelayS - (now - diedAt) / 1000,
       COMBAT.respawnDelayS,
     );
+    hud.setDash(dashReadiness(prediction.current));
     hud.setHeading(input.yaw);
     // The shortest way round, so that crossing ±π is not a full turn.
     const turned = Math.atan2(Math.sin(input.yaw - lastYaw), Math.cos(input.yaw - lastYaw));
