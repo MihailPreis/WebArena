@@ -59,7 +59,7 @@ function clamp(value: number, lo: number, hi: number): number {
 }
 
 function applyFriction(vel: Vec3, dt: number): void {
-  const speed = Math.hypot(vel[0], vel[2]);
+  const speed = Math.sqrt(vel[0] * vel[0] + vel[2] * vel[2]);
   if (speed < 1e-4) {
     vel[0] = 0;
     vel[2] = 0;
@@ -126,7 +126,9 @@ function moveWithStep(
 }
 
 function travelled(from: Vec3, to: Vec3): number {
-  return Math.hypot(to[0] - from[0], to[2] - from[2]);
+  const dx = to[0] - from[0];
+  const dz = to[2] - from[2];
+  return Math.sqrt(dx * dx + dz * dz);
 }
 
 /** Advances the player by one fixed tick. Pure: returns a new state. */
@@ -155,7 +157,8 @@ export function stepPlayer(
   const cos = Math.cos(cmd.yaw);
   let wishX = -sin * forward + cos * right;
   let wishZ = -cos * forward - sin * right;
-  const wishLength = Math.hypot(wishX, wishZ);
+  // sqrt rather than hypot: it is rounded identically in every runtime, so the server agrees.
+  const wishLength = Math.sqrt(wishX * wishX + wishZ * wishZ);
   if (wishLength > 0) {
     wishX /= wishLength;
     wishZ /= wishLength;

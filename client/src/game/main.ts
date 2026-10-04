@@ -6,12 +6,22 @@ import { roomCodeFromPath } from '../shared/roomCode';
 import { describeSettings } from '../shared/roomText';
 import { ensureSession, type Session } from '../shared/session';
 import { Input } from './input';
+import { Connection } from './net/connection';
+import { RemoteInterpolator } from './net/interpolation';
+import { Prediction } from './net/prediction';
+import {
+  CloseCode,
+  INTERPOLATION_DELAY_S,
+  SNAPSHOT_RATE,
+  type PublicPlayer,
+  type SnapshotMsg,
+  type WelcomeMsg,
+} from './net/protocol';
 import { createRenderer } from './render/renderer';
 import { loadSensitivity, saveSensitivity, SENSITIVITY_MAX, SENSITIVITY_MIN } from './settings';
 import { TICK_DT } from './sim/constants';
 import { FixedStep } from './sim/fixedStep';
 import { parseMap } from './sim/map';
-import { createPlayer, stepPlayer, type PlayerState } from './sim/movement';
 import { ViewSmoother } from './view';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -22,6 +32,14 @@ function element<T extends HTMLElement>(id: string): T {
 
 const title = element('room-title');
 const message = element('message');
+
+const CLOSE_MESSAGES: Record<number, string> = {
+  [CloseCode.ROOM_FULL]: 'Комната заполнена.',
+  [CloseCode.ROOM_NOT_FOUND]: 'Комната закрылась. Создайте новую на главной.',
+  [CloseCode.REPLACED]: 'Игра открыта в другой вкладке.',
+  [CloseCode.VERSION_MISMATCH]: 'Вышла новая версия игры. Обновите страницу.',
+  [CloseCode.BAD_TOKEN]: 'Профиль не найден. Обновите страницу.',
+};
 
 async function enter(): Promise<void> {
   const code = roomCodeFromPath(window.location.pathname);
@@ -53,19 +71,40 @@ async function enter(): Promise<void> {
     return;
   }
 
-  message.textContent = '';
+  message.textContent = 'Подключение…';
   element('room-info').textContent = describeSettings(room.settings);
   const player = element('player');
   player.textContent = session.profile.name;
   player.style.color = session.profile.color;
-  setupCopyLink();
 
-  try {
-    start();
-  } catch (error) {
-    console.error(error);
-    message.textContent = 'Не удалось запустить игру. Проверьте, что в браузере включён WebGL.';
-  }
+  const roster = new Map<string, PublicPlayer>();
+  let game: ReturnType<typeof createGame> | null = null;
+  const connection = new Connection(code, session.token, {
+    onWelcome(welcome) {
+      for (const other of welcome.players) roster.set(other.id, other);
+      try {
+        game = createGame({ welcome, connection, roster });
+      } catch (error) {
+        console.error(error);
+        message.textContent = 'Не удалось запустить игру. Проверьте, что в браузере включён WebGL.';
+        return;
+      }
+      message.textContent = '';
+      setupCopyLink();
+    },
+    onSnapshot(snapshot) {
+      game?.handleSnapshot(snapshot);
+    },
+    onEvent(event) {
+      if (event.e === 'join') roster.set(event.player.id, event.player);
+      else roster.delete(event.id);
+    },
+    onClose(closeCode) {
+      game?.stop();
+      message.textContent =
+        CLOSE_MESSAGES[closeCode] ?? 'Соединение потеряно. Обновите страницу, чтобы вернуться.';
+    },
+  });
 }
 
 function setupCopyLink(): void {
@@ -85,7 +124,14 @@ function setupCopyLink(): void {
 
 void enter();
 
-function start(): void {
+interface GameOptions {
+  welcome: WelcomeMsg;
+  connection: Connection;
+  /** Names and colours of the other players; kept up to date by the caller. */
+  roster: ReadonlyMap<string, PublicPlayer>;
+}
+
+function createGame({ welcome, connection, roster }: GameOptions) {
   const canvas = element<HTMLCanvasElement>('view');
   const overlay = element('overlay');
   const hud = element('hud');
@@ -109,6 +155,7 @@ function start(): void {
     saveSensitivity(sensitivity);
   });
 
+  let running = true;
   const input = new Input(
     canvas,
     () => sensitivity,
@@ -117,27 +164,18 @@ function start(): void {
       hud.hidden = !locked;
     },
   );
-  play.addEventListener('click', () => input.lock());
-  canvas.addEventListener('click', () => input.lock());
+  input.yaw = welcome.you.yaw;
+  const lock = () => {
+    if (running) input.lock();
+  };
+  play.addEventListener('click', lock);
+  canvas.addEventListener('click', lock);
   for (const id of ['play', 'controls', 'sensitivity-row']) element(id).hidden = false;
 
   const loop = new FixedStep(TICK_DT);
   const view = new ViewSmoother();
-  let spawnIndex = Math.floor(Math.random() * map.spawns.length);
-  let current: PlayerState;
-  let previous: PlayerState;
-
-  function respawn(): void {
-    const spawn = map.spawns[spawnIndex % map.spawns.length];
-    if (!spawn) throw new Error('map has no spawns');
-    spawnIndex++;
-    current = createPlayer(spawn);
-    previous = current;
-    input.yaw = spawn.yaw;
-    input.pitch = 0;
-    view.reset();
-  }
-  respawn();
+  const prediction = new Prediction(map, welcome.you);
+  const remotes = new RemoteInterpolator(INTERPOLATION_DELAY_S);
 
   let lastTime = performance.now();
   let fps = 0;
@@ -146,19 +184,44 @@ function start(): void {
     const dt = Math.min((now - lastTime) / 1000, 0.25);
     lastTime = now;
 
-    const steps = loop.advance(dt);
+    const steps = running ? loop.advance(dt) : 0;
     for (let i = 0; i < steps; i++) {
-      previous = current;
-      current = stepPlayer(current, input.command(), map, TICK_DT);
-      if (current.pos[1] < map.killY) respawn();
+      const cmd = input.command();
+      connection.sendInput(prediction.step(cmd), cmd);
     }
 
-    renderer.render(view.update(previous, current, loop.alpha, input.yaw, input.pitch, dt));
+    const others = remotes.sample(now / 1000).map((remote) => {
+      const known = roster.get(remote.id);
+      return { ...remote, name: known?.name ?? '', color: known?.color ?? '#ffffff' };
+    });
+    renderer.render(
+      view.update(prediction.previous, prediction.current, loop.alpha, input.yaw, input.pitch, dt),
+      others,
+    );
 
     if (dt > 0) fps += (1 / dt - fps) * 0.05;
-    const speed = Math.hypot(current.vel[0], current.vel[2]);
-    debug.textContent = `${fps.toFixed(0)} fps\n${speed.toFixed(1)} м/с`;
+    const speed = Math.hypot(prediction.current.vel[0], prediction.current.vel[2]);
+    const ping = connection.ping === null ? '—' : connection.ping.toFixed(0);
+    debug.textContent = [
+      `${fps.toFixed(0)} fps`,
+      `${ping} мс`,
+      `${speed.toFixed(1)} м/с`,
+      `игроков: ${others.length + 1}`,
+    ].join('\n');
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+
+  return {
+    handleSnapshot(snapshot: SnapshotMsg): void {
+      remotes.push(snapshot.tick / SNAPSHOT_RATE, performance.now() / 1000, snapshot.players);
+      view.nudge(prediction.reconcile(snapshot.you, snapshot.ack));
+    },
+    /** Freezes the game after the connection is gone; the last frame stays on screen. */
+    stop(): void {
+      running = false;
+      play.hidden = true;
+      if (document.pointerLockElement) document.exitPointerLock();
+    },
+  };
 }

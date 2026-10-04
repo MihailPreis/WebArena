@@ -1,8 +1,11 @@
+import asyncio
 import secrets
 import string
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+
+from arena.game.map import GameMap
+from arena.game.room import MatchSettings, Room
 
 CODE_ALPHABET = string.ascii_uppercase + string.digits
 CODE_LENGTH = 4
@@ -13,28 +16,16 @@ class RoomCodesExhausted(Exception):
     """No free room code could be found."""
 
 
-@dataclass(frozen=True)
-class MatchSettings:
-    mode: str
-    kill_limit: int
-    time_limit_min: int
-    max_players: int
-
-
-@dataclass
-class Room:
-    code: str
-    host_id: str
-    settings: MatchSettings
-    player_ids: set[str] = field(default_factory=set)
-    # Set while the room has no players; the room is dropped once this is older than the TTL.
-    empty_since: float | None = None
-
-
 class RoomRegistry:
     """Rooms live in process memory, which is why the server runs as a single worker."""
 
-    def __init__(self, empty_ttl_s: float, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(
+        self,
+        game_map: GameMap,
+        empty_ttl_s: float,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._map = game_map
         self._empty_ttl_s = empty_ttl_s
         self._clock = clock
         self._rooms: dict[str, Room] = {}
@@ -44,7 +35,7 @@ class RoomRegistry:
         for _ in range(_CODE_ATTEMPTS):
             code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
             if code not in self._rooms:
-                room = Room(code, host_id, settings, empty_since=self._clock())
+                room = Room(code, host_id, settings, self._map, self._clock)
                 self._rooms[code] = room
                 return room
         raise RoomCodesExhausted
@@ -55,6 +46,9 @@ class RoomRegistry:
             del self._rooms[code]
             return None
         return room
+
+    async def shutdown(self) -> None:
+        await asyncio.gather(*(room.stop() for room in self._rooms.values()))
 
     def _expired(self, room: Room) -> bool:
         return (

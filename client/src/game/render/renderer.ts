@@ -1,5 +1,6 @@
 import { Color, Fog, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import type { GameMap, Vec3 } from '../sim/map';
+import { PlayerSprites, type RenderPlayer } from './players';
 import { buildSky } from './sky';
 import { buildWorld } from './world';
 
@@ -15,7 +16,7 @@ export interface View {
 }
 
 export interface GameRenderer {
-  render(view: View): void;
+  render(view: View, players: readonly RenderPlayer[]): void;
   resize(): void;
 }
 
@@ -30,6 +31,8 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
   scene.add(buildWorld(map));
   const sky = buildSky(FOG_COLOR);
   scene.add(sky);
+  const sprites = new PlayerSprites();
+  scene.add(sprites.group);
 
   const camera = new PerspectiveCamera(VERTICAL_FOV, 1, 0.05, 200);
   camera.rotation.order = 'YXZ';
@@ -52,7 +55,8 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
 
   return {
     resize,
-    render(view) {
+    render(view, players) {
+      sprites.update(players, view.eye);
       camera.position.set(view.eye[0], view.eye[1], view.eye[2]);
       camera.rotation.set(view.pitch, view.yaw, 0);
       sky.position.copy(camera.position);

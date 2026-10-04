@@ -1,0 +1,1638 @@
+{
+ "map": "arena",
+ "note": "Reference results of the movement simulation. `expect` holds the state after each segment; regenerate with `make vectors`.",
+ "cases": [
+  {
+   "name": "settle on spawn",
+   "start": {
+    "pos": [
+     0,
+     0,
+     16
+    ],
+    "yawDeg": 0
+   },
+   "segments": [
+    {
+     "ticks": 30,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    }
+   ],
+   "expect": [
+    {
+     "pos": [
+      0,
+      0,
+      16
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    }
+   ]
+  },
+  {
+   "name": "run up the stairs onto the platform",
+   "start": {
+    "pos": [
+     0,
+     0,
+     16
+    ],
+    "yawDeg": 0
+   },
+   "segments": [
+    {
+     "ticks": 60,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 60,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 60,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 60,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 40,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    }
+   ],
+   "expect": [
+    {
+     "pos": [
+      0,
+      0,
+      9.620475992820884
+     ],
+     "vel": [
+      0,
+      0,
+      -7
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      0,
+      2,
+      2.620475992820892
+     ],
+     "vel": [
+      0,
+      0,
+      -7
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      0,
+      2,
+      1.35
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      0,
+      2,
+      1.35
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      0,
+      2,
+      1.35
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    }
+   ]
+  },
+  {
+   "name": "walk back down the stairs",
+   "start": {
+    "pos": [
+     0,
+     2,
+     3
+    ],
+    "yawDeg": 180
+   },
+   "segments": [
+    {
+     "ticks": 20,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 180,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 60,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 180,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 60,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 180,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 60,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 180,
+      "pitch": 0
+     }
+    }
+   ],
+   "expect": [
+    {
+     "pos": [
+      0,
+      2,
+      3
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -7.950518715405294e-16,
+      0,
+      9.49209120616716
+     ],
+     "vel": [
+      -8.572527594031474e-16,
+      0,
+      7
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -1.6523046309436796e-15,
+      0,
+      16.49209120616719
+     ],
+     "vel": [
+      -8.572527594031474e-16,
+      0,
+      7
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -2.1133161148893706e-15,
+      0,
+      19.65
+     ],
+     "vel": [
+      -1.1430036792041963e-16,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    }
+   ]
+  },
+  {
+   "name": "sprint diagonally into a wall and slide",
+   "start": {
+    "pos": [
+     15,
+     0,
+     0
+    ],
+    "yawDeg": -70
+   },
+   "segments": [
+    {
+     "ticks": 45,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -70,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 45,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -70,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 90,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -70,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 30,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": -70,
+      "pitch": 0
+     }
+    }
+   ],
+   "expect": [
+    {
+     "pos": [
+      19.65,
+      0,
+      -2.392760662518187
+     ],
+     "vel": [
+      0,
+      0,
+      -4.612680886566892
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      19.65,
+      0,
+      -6.342542498264472
+     ],
+     "vel": [
+      0,
+      0,
+      -5.455189345630945
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      19.65,
+      0,
+      1.5313787810321071
+     ],
+     "vel": [
+      0,
+      0,
+      6.756868800181927
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      19.65,
+      0,
+      2.5868047277321256
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    }
+   ]
+  },
+  {
+   "name": "crawl through the low gap and stand up",
+   "start": {
+    "pos": [
+     -18,
+     0,
+     -1
+    ],
+    "yawDeg": -90
+   },
+   "segments": [
+    {
+     "ticks": 100,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": -90,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 120,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": true,
+      "sprint": false,
+      "yawDeg": -90,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 40,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": -90,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 120,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": true,
+      "sprint": false,
+      "yawDeg": -90,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 60,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": -90,
+      "pitch": 0
+     }
+    }
+   ],
+   "expect": [
+    {
+     "pos": [
+      -12.85,
+      0,
+      -1
+     ],
+     "vel": [
+      0,
+      0,
+      -5.715018396020982e-17
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -6.1394718703560525,
+      0,
+      -1
+     ],
+     "vel": [
+      3.5,
+      0,
+      -2.1431318985078685e-16
+     ],
+     "onGround": true,
+     "crouched": true
+    },
+    {
+     "pos": [
+      -4.35,
+      0,
+      -1
+     ],
+     "vel": [
+      0,
+      0,
+      -5.715018396020982e-17
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -4.35,
+      0,
+      -1
+     ],
+     "vel": [
+      0,
+      0,
+      -2.857509198010491e-17
+     ],
+     "onGround": true,
+     "crouched": true
+    },
+    {
+     "pos": [
+      -4.35,
+      0,
+      -1
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    }
+   ]
+  },
+  {
+   "name": "cannot stand up under the slab",
+   "start": {
+    "pos": [
+     12,
+     0,
+     -6
+    ],
+    "yawDeg": 0
+   },
+   "segments": [
+    {
+     "ticks": 20,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 90,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": true,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 30,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 120,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 30,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    }
+   ],
+   "expect": [
+    {
+     "pos": [
+      12,
+      0,
+      -6
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      12,
+      0,
+      -10.960528129643937
+     ],
+     "vel": [
+      0,
+      0,
+      -3.5
+     ],
+     "onGround": true,
+     "crouched": true
+    },
+    {
+     "pos": [
+      12,
+      0,
+      -11.41886146297727
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": true
+    },
+    {
+     "pos": [
+      12,
+      0,
+      -19.65
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      12,
+      0,
+      -19.65
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    }
+   ]
+  },
+  {
+   "name": "jump onto a crate with air control",
+   "start": {
+    "pos": [
+     10,
+     0,
+     11.5
+    ],
+    "yawDeg": 0
+   },
+   "segments": [
+    {
+     "ticks": 20,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 20,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 1,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": true,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 0,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 20,
+     "cmd": {
+      "forward": 1,
+      "right": -1,
+      "jump": true,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 15,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 40,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 30,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 1,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": true,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 30,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 50,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": 75,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 30,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 75,
+      "pitch": 0
+     }
+    }
+   ],
+   "expect": [
+    {
+     "pos": [
+      10,
+      0,
+      11.5
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      10,
+      0,
+      9.674575460499494
+     ],
+     "vel": [
+      0,
+      0,
+      -7
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      10,
+      0.11111111111111112,
+      9.557908793832826
+     ],
+     "vel": [
+      0,
+      6.666666666666667,
+      -7
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      9.469559440182032,
+      1.1666666666666674,
+      9.297500000000001
+     ],
+     "vel": [
+      -3.0310889132455356,
+      2.1094237467877974e-15,
+      -0.7000000000000001
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      6.619010737814955,
+      0,
+      6.364157098330525
+     ],
+     "vel": [
+      -4.082736445036281,
+      0,
+      -5.725734783082767
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      6.5509651303976835,
+      0.11111111111111112,
+      6.268728185279145
+     ],
+     "vel": [
+      -4.082736445036281,
+      6.666666666666667,
+      -5.725734783082767
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      4.35,
+      0,
+      0.4658022640990167
+     ],
+     "vel": [
+      0,
+      0,
+      -5.997692902522345
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      4.35,
+      0,
+      -0.4504414346967467
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    }
+   ]
+  },
+  {
+   "name": "held jump does not repeat",
+   "start": {
+    "pos": [
+     18,
+     0,
+     0
+    ],
+    "yawDeg": 90
+   },
+   "segments": [
+    {
+     "ticks": 10,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 90,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 120,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": true,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 90,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 5,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 90,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 40,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": true,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 90,
+      "pitch": 0
+     }
+    }
+   ],
+   "expect": [
+    {
+     "pos": [
+      18,
+      0,
+      0
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      18,
+      0,
+      0
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      18,
+      0,
+      0
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      18,
+      0.11111111111111302,
+      0
+     ],
+     "vel": [
+      0,
+      -6.3333333333333295,
+      0
+     ],
+     "onGround": false,
+     "crouched": false
+    }
+   ]
+  },
+  {
+   "name": "strafe jumps with turning",
+   "start": {
+    "pos": [
+     -18,
+     0,
+     18
+    ],
+    "yawDeg": -45
+   },
+   "segments": [
+    {
+     "ticks": 15,
+     "cmd": {
+      "forward": 0,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": -45,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 1,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": true,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -45,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 34,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -48,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 1,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": true,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -51,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 34,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -54,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 1,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": true,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -57,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 34,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -60,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 1,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": true,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -63,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 34,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -66,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 1,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": true,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -69,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 34,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -72,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 1,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": true,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -75,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 34,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -78,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 1,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": true,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -81,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 34,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -84,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 1,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": true,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -87,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 34,
+     "cmd": {
+      "forward": 1,
+      "right": 1,
+      "jump": false,
+      "crouch": false,
+      "sprint": true,
+      "yawDeg": -90,
+      "pitch": 0
+     }
+    }
+   ],
+   "expect": [
+    {
+     "pos": [
+      -18,
+      0,
+      18
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -17.995833333333334,
+      0.11111111111111112,
+      18
+     ],
+     "vel": [
+      0.25,
+      6.666666666666667,
+      -1.962615573354719e-17
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -15.378397611754284,
+      0.5833333333333349,
+      18.129749558185633
+     ],
+     "vel": [
+      8.738351045413877,
+      -4.666666666666664,
+      0.44485562806502227
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -15.228614586433352,
+      0.5000000000000017,
+      18.137599353917
+     ],
+     "vel": [
+      8.986981519255945,
+      -4.999999999999997,
+      0.4709877438819356
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -9.62036355552225,
+      0,
+      18.771284632781004
+     ],
+     "vel": [
+      9.88975690912477,
+      0,
+      1.483064550242129
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -9.455240641141831,
+      0.11111111111111112,
+      18.796064788812743
+     ],
+     "vel": [
+      9.907374862825106,
+      6.666666666666667,
+      1.486809361904334
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -3.816213596845987,
+      0.5833333333333349,
+      19.64524808346463
+     ],
+     "vel": [
+      9.951224195816197,
+      -4.666666666666664,
+      1.4985587552679402
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -3.649206811042416,
+      0.5000000000000017,
+      19.65
+     ],
+     "vel": [
+      10.020407148214268,
+      -4.999999999999997,
+      0
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      2.348352370314819,
+      0,
+      19.65
+     ],
+     "vel": [
+      10.58151632525582,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      2.5285174151425935,
+      0.11111111111111112,
+      19.65
+     ],
+     "vel": [
+      10.809902689666469,
+      6.666666666666667,
+      0
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      8.88436454521044,
+      0.5833333333333349,
+      19.65
+     ],
+     "vel": [
+      11.223262376343607,
+      -4.666666666666664,
+      0
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      9.075027357331935,
+      0.5000000000000017,
+      19.65
+     ],
+     "vel": [
+      11.439768727289717,
+      -4.999999999999997,
+      0
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      15.638860019936383,
+      0,
+      19.65
+     ],
+     "vel": [
+      11.518813609855908,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      15.834211150910543,
+      0.11111111111111112,
+      19.65
+     ],
+     "vel": [
+      11.721067858449645,
+      6.666666666666667,
+      0
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      19.65,
+      0.5833333333333349,
+      19.65
+     ],
+     "vel": [
+      0,
+      -4.666666666666664,
+      0
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      19.65,
+      0.5000000000000017,
+      19.65
+     ],
+     "vel": [
+      0,
+      -4.999999999999997,
+      0
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      19.65,
+      0,
+      19.65
+     ],
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "onGround": true,
+     "crouched": false
+    }
+   ]
+  },
+  {
+   "name": "fall onto the platform crate",
+   "start": {
+    "pos": [
+     0.9,
+     9,
+     0.3
+    ],
+    "yawDeg": 40
+   },
+   "segments": [
+    {
+     "ticks": 30,
+     "cmd": {
+      "forward": 0.5,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 40,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 30,
+     "cmd": {
+      "forward": 0.5,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 40,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 60,
+     "cmd": {
+      "forward": 0,
+      "right": -0.25,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 40,
+      "pitch": 0
+     }
+    },
+    {
+     "ticks": 60,
+     "cmd": {
+      "forward": 1,
+      "right": 0,
+      "jump": false,
+      "crouch": false,
+      "sprint": false,
+      "yawDeg": 130,
+      "pitch": 0
+     }
+    }
+   ],
+   "expect": [
+    {
+     "pos": [
+      0.46410965218131545,
+      6.416666666666663,
+      -0.21947388799005677
+     ],
+     "vel": [
+      -1.6873174754271663,
+      -10,
+      -2.0108666631873158
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -0.6185857278844501,
+      2.9444444444444446,
+      -1.5097799968685837
+     ],
+     "vel": [
+      -2.2497566339028894,
+      -1.3333333333333333,
+      -2.681155550916421
+     ],
+     "onGround": false,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -2.6072266725858637,
+      2,
+      -1.7905498851581592
+     ],
+     "vel": [
+      -1.373438843978222,
+      0,
+      1.0857160204862364
+     ],
+     "onGround": true,
+     "crouched": false
+    },
+    {
+     "pos": [
+      -7.737283289955458,
+      0,
+      2.4987707276974263
+     ],
+     "vel": [
+      -5.363994601254748,
+      0,
+      4.4975069513215935
+     ],
+     "onGround": true,
+     "crouched": false
+    }
+   ]
+  }
+ ]
+}

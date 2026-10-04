@@ -1,0 +1,84 @@
+"""Wire protocol. Mirrors client/src/game/net/protocol.ts — change both together."""
+
+import json
+from enum import IntEnum
+from typing import Annotated, Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+
+from arena.game.movement import InputCmd, PlayerState
+from arena.shared import CONSTANTS
+
+PROTOCOL_VERSION: int = CONSTANTS["net"]["protocolVersion"]
+
+
+class CloseCode(IntEnum):
+    """WebSocket close codes in the application range."""
+
+    BAD_MESSAGE = 4000
+    BAD_TOKEN = 4001
+    ROOM_FULL = 4002
+    ROOM_NOT_FOUND = 4003
+    VERSION_MISMATCH = 4004
+    REPLACED = 4005
+    TOO_SLOW = 4006
+
+
+class _ClientModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+
+
+class Hello(_ClientModel):
+    t: Literal["hello"]
+    v: int
+    token: str = Field(max_length=200)
+
+
+class InputMsg(_ClientModel):
+    t: Literal["input"]
+    seq: int = Field(ge=0)
+    # JSON has one number type, so whole numbers such as 0 and 1 must pass as floats.
+    f: Annotated[float, Field(ge=-1, le=1, strict=False)]
+    r: Annotated[float, Field(ge=-1, le=1, strict=False)]
+    j: bool
+    c: bool
+    s: bool
+    yaw: Annotated[float, Field(ge=-7, le=7, strict=False)]
+    pitch: Annotated[float, Field(ge=-1.6, le=1.6, strict=False)]
+
+    def to_cmd(self) -> InputCmd:
+        return InputCmd(
+            forward=self.f,
+            right=self.r,
+            jump=self.j,
+            crouch=self.c,
+            sprint=self.s,
+            yaw=self.yaw,
+            pitch=self.pitch,
+        )
+
+
+class PingMsg(_ClientModel):
+    t: Literal["ping"]
+    id: int
+
+
+ClientMessage = Annotated[InputMsg | PingMsg, Field(discriminator="t")]
+CLIENT_MESSAGE: TypeAdapter[InputMsg | PingMsg] = TypeAdapter(ClientMessage)
+
+
+def encode(message: dict[str, Any]) -> str:
+    return json.dumps(message, separators=(",", ":"), ensure_ascii=False)
+
+
+def state_json(state: PlayerState) -> dict[str, Any]:
+    """Full state of a player, in the shape of the client's `PlayerState`."""
+    return {
+        "pos": state.pos,
+        "vel": state.vel,
+        "yaw": state.yaw,
+        "pitch": state.pitch,
+        "onGround": state.on_ground,
+        "crouched": state.crouched,
+        "jumpHeld": state.jump_held,
+    }

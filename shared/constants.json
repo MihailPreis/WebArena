@@ -55,5 +55,11 @@
       "max": 8,
       "default": 8
     }
+  },
+  "net": {
+    "protocolVersion": 1,
+    "snapshotRate": 30,
+    "interpolationDelayMs": 100,
+    "maxInputBurst": 20
   }
 }

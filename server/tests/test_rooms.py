@@ -3,9 +3,13 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
-from arena.game.rooms import MatchSettings, RoomRegistry
-from tests.conftest import auth
+from arena.db.players import Player
+from arena.game.map import load_map
+from arena.game.room import MatchSettings
+from arena.game.rooms import RoomRegistry
+from tests.conftest import FakeConn, auth
 
+ARENA = load_map("arena")
 SETTINGS = MatchSettings(mode="deathmatch", kill_limit=25, time_limit_min=10, max_players=8)
 
 
@@ -71,14 +75,14 @@ def test_room_does_not_leak_tokens(api: TestClient, token: str) -> None:
 
 
 def test_registry_gives_unique_codes() -> None:
-    registry = RoomRegistry(empty_ttl_s=60)
+    registry = RoomRegistry(ARENA, empty_ttl_s=60)
     codes = {registry.create("host", SETTINGS).code for _ in range(500)}
     assert len(codes) == 500
 
 
 def test_empty_room_expires_after_ttl() -> None:
     now = 0.0
-    registry = RoomRegistry(empty_ttl_s=60, clock=lambda: now)
+    registry = RoomRegistry(ARENA, empty_ttl_s=60, clock=lambda: now)
     room = registry.create("host", SETTINGS)
     now = 59.0
     assert registry.get(room.code) is room
@@ -88,9 +92,16 @@ def test_empty_room_expires_after_ttl() -> None:
 
 def test_occupied_room_does_not_expire() -> None:
     now = 0.0
-    registry = RoomRegistry(empty_ttl_s=60, clock=lambda: now)
+    registry = RoomRegistry(ARENA, empty_ttl_s=60, clock=lambda: now)
     room = registry.create("host", SETTINGS)
-    room.player_ids.add("host")
-    room.empty_since = None
+    conn = FakeConn()
+    member = room.join(Player("host", "Host", "#ffffff"), conn)
     now = 10_000.0
     assert registry.get(room.code) is room
+
+    # The countdown starts again only when the last player leaves.
+    room.leave(member, conn)
+    now = 10_059.0
+    assert registry.get(room.code) is room
+    now = 10_060.0
+    assert registry.get(room.code) is None

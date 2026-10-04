@@ -10,7 +10,9 @@ from fastapi.staticfiles import StaticFiles
 from arena.api import players, rooms
 from arena.config import Settings
 from arena.db.database import Database
+from arena.game.map import load_map
 from arena.game.rooms import RoomRegistry
+from arena.net import ws
 
 ROOM_CODE_RE = re.compile(r"[A-Z0-9]{4}")
 
@@ -26,13 +28,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             yield
         finally:
+            await app.state.rooms.shutdown()
             await db.close()
 
     app = FastAPI(title="Arena", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.settings = settings
-    app.state.rooms = RoomRegistry(empty_ttl_s=settings.room_empty_ttl_s)
+    app.state.rooms = RoomRegistry(load_map("arena"), empty_ttl_s=settings.room_empty_ttl_s)
     app.include_router(players.router)
     app.include_router(rooms.router)
+    app.include_router(ws.router)
 
     def page(name: str) -> FileResponse:
         path: Path = settings.client_dist / name

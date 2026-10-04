@@ -5,6 +5,9 @@ import { eyeHeight, type PlayerState } from './sim/movement';
 
 const EYE_RATE = 14;
 const STEP_RATE = 18;
+const CORRECTION_RATE = 12;
+// Larger server corrections (a respawn) are shown at once instead of being smoothed.
+const MAX_SMOOTHED_CORRECTION = 2;
 
 function approach(current: number, target: number, rate: number, dt: number): number {
   return current + (target - current) * (1 - Math.exp(-rate * dt));
@@ -17,10 +20,24 @@ function approach(current: number, target: number, rate: number, dt: number): nu
 export class ViewSmoother {
   private eye = PLAYER.standEyeHeight;
   private feetY: number | null = null;
+  private correction: Vec3 = [0, 0, 0];
 
-  reset(): void {
-    this.eye = PLAYER.standEyeHeight;
-    this.feetY = null;
+  /**
+   * Call when a server correction moved the predicted position by `-delta`:
+   * the camera keeps its place and then eases to the corrected position.
+   */
+  nudge(delta: Vec3): void {
+    const next: Vec3 = [
+      this.correction[0] + delta[0],
+      this.correction[1] + delta[1],
+      this.correction[2] + delta[2],
+    ];
+    if (Math.hypot(...next) > MAX_SMOOTHED_CORRECTION) {
+      this.correction = [0, 0, 0];
+      this.feetY = null;
+    } else {
+      this.correction = next;
+    }
   }
 
   update(
@@ -41,7 +58,18 @@ export class ViewSmoother {
     this.feetY =
       stepping && this.feetY !== null ? approach(this.feetY, feetY, STEP_RATE, dt) : feetY;
 
-    const eye: Vec3 = [lerp(0), this.feetY + this.eye, lerp(2)];
+    const decay = Math.exp(-CORRECTION_RATE * dt);
+    this.correction = [
+      this.correction[0] * decay,
+      this.correction[1] * decay,
+      this.correction[2] * decay,
+    ];
+
+    const eye: Vec3 = [
+      lerp(0) + this.correction[0],
+      this.feetY + this.eye + this.correction[1],
+      lerp(2) + this.correction[2],
+    ];
     return { eye, yaw, pitch };
   }
 }

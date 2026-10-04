@@ -1,4 +1,4 @@
-.PHONY: install dev dev-server dev-client test lint format build
+.PHONY: install dev dev-server dev-client test lint format build vectors
 
 install:
 	cd server && uv sync
@@ -28,3 +28,8 @@ format:
 
 build:
 	cd client && npm run build
+
+# Regenerate shared/movement_vectors.json from the client simulation (the reference).
+vectors:
+	cd client && UPDATE_VECTORS=1 npx vitest run src/game/sim/vectors.test.ts
+	cd server && uv run pytest tests/test_movement_vectors.py

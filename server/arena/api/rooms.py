@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException
 
 from arena.api.deps import CurrentPlayer, Rooms
 from arena.api.models import RoomOut, RoomSettings
-from arena.game.rooms import MatchSettings, Room, RoomCodesExhausted
+from arena.game.room import MatchSettings, Room
+from arena.game.rooms import RoomCodesExhausted
 
 router = APIRouter(prefix="/api/rooms")
 
@@ -11,7 +12,7 @@ def _room_out(room: Room) -> RoomOut:
     return RoomOut(
         code=room.code,
         host_id=room.host_id,
-        players=len(room.player_ids),
+        players=len(room.connected),
         settings=RoomSettings(
             mode="deathmatch",
             kill_limit=room.settings.kill_limit,

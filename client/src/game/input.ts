@@ -35,6 +35,9 @@ export class Input {
       if (!this.locked) return;
       const scale = RADIANS_PER_COUNT * this.sensitivity();
       this.yaw -= event.movementX * scale;
+      // Keep yaw within one turn; the server rejects values far outside it.
+      if (this.yaw > Math.PI) this.yaw -= 2 * Math.PI;
+      else if (this.yaw < -Math.PI) this.yaw += 2 * Math.PI;
       this.pitch -= event.movementY * scale;
       this.pitch = Math.min(Math.max(this.pitch, -PITCH_LIMIT), PITCH_LIMIT);
     });
