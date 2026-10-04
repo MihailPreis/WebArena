@@ -85,6 +85,35 @@ body.game {
   background: #f4d77c;
 }
 
+#copy-link {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 14px;
+  color: #e6c35c;
+  background: none;
+  border: 2px solid #e6c35c;
+  cursor: pointer;
+}
+
+#copy-link:hover {
+  color: #111;
+  background: #e6c35c;
+}
+
+#play[hidden],
+#copy-link[hidden] {
+  display: none;
+}
+
+#room-info {
+  font-size: 14px;
+  color: #b8b2c4;
+}
+
+#player {
+  font-weight: bold;
+}
+
 #controls {
   display: grid;
   grid-template-columns: auto auto;

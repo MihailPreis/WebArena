@@ -18,5 +18,42 @@
     "stopSpeed": 2,
     "gravity": 20,
     "jumpSpeed": 7
+  },
+  "profile": {
+    "defaultName": "Player",
+    "nameMaxLength": 16,
+    "minColorLuminance": 0.08,
+    "colors": [
+      "#ff5555",
+      "#ff9f43",
+      "#feca57",
+      "#a3e635",
+      "#2ed573",
+      "#1dd1a1",
+      "#48dbfb",
+      "#54a0ff",
+      "#a29bfe",
+      "#f368e0",
+      "#ff9ff3",
+      "#dfe6e9"
+    ]
+  },
+  "room": {
+    "modes": ["deathmatch"],
+    "killLimit": {
+      "min": 5,
+      "max": 100,
+      "default": 25
+    },
+    "timeLimitMin": {
+      "min": 1,
+      "max": 30,
+      "default": 10
+    },
+    "maxPlayers": {
+      "min": 2,
+      "max": 8,
+      "default": 8
+    }
   }
 }

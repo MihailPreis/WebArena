@@ -17,8 +17,8 @@ def dist(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def client(dist: Path) -> TestClient:
-    return TestClient(create_app(Settings(client_dist=dist)))
+def client(dist: Path, tmp_path: Path) -> TestClient:
+    return TestClient(create_app(Settings(client_dist=dist, db_path=tmp_path / "arena.db")))
 
 
 def test_healthz(client: TestClient) -> None:
@@ -51,7 +51,8 @@ def test_assets_are_served(client: TestClient) -> None:
 
 
 def test_pages_missing_without_build(tmp_path: Path) -> None:
-    client = TestClient(create_app(Settings(client_dist=tmp_path / "missing")))
+    settings = Settings(client_dist=tmp_path / "missing", db_path=tmp_path / "arena.db")
+    client = TestClient(create_app(settings))
     assert client.get("/").status_code == 404
     assert client.get("/healthz").status_code == 200
 

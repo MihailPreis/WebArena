@@ -1,0 +1,160 @@
+.home {
+  width: 100%;
+  max-width: 460px;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  display: grid;
+  gap: 16px;
+  text-align: left;
+}
+
+.home h1 {
+  margin: 0;
+  text-align: center;
+  font-size: 48px;
+  letter-spacing: 8px;
+  color: #e6c35c;
+  text-shadow: 4px 4px 0 #6b2a1e;
+}
+
+.home h2 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #9a93a8;
+}
+
+.home section {
+  padding: 16px;
+  border: 2px solid #3a3346;
+  background: #1a1622;
+}
+
+#status {
+  margin: 0;
+  text-align: center;
+  color: #ff8a7a;
+}
+
+#status:empty,
+.message:empty {
+  display: none;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #b8b2c4;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.home input[type='text'],
+.home input[type='number'],
+.home select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 16px;
+  color: #e6e6e6;
+  background: #0d0b12;
+  border: 2px solid #3a3346;
+  border-radius: 0;
+}
+
+.home input:focus-visible,
+.home select:focus-visible,
+.home button:focus-visible {
+  outline: 2px solid #e6c35c;
+  outline-offset: 1px;
+}
+
+#name {
+  font-weight: bold;
+}
+
+#colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid #0d0b12;
+  cursor: pointer;
+}
+
+.swatch[aria-pressed='true'] {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px #0d0b12 inset;
+}
+
+#custom-color {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid #3a3346;
+  background: none;
+  cursor: pointer;
+}
+
+.home button[type='submit'] {
+  width: 100%;
+  padding: 10px 16px;
+  font: inherit;
+  font-size: 16px;
+  color: #111;
+  background: #e6c35c;
+  border: 0;
+  cursor: pointer;
+}
+
+.home button[type='submit']:hover:not(:disabled) {
+  background: #f4d77c;
+}
+
+.home button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.join {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+}
+
+#code {
+  text-transform: uppercase;
+  letter-spacing: 6px;
+  text-align: center;
+}
+
+.message {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #ff8a7a;
+}
+
+.message.ok {
+  color: #8fd18f;
+}
+
+@media (max-width: 420px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+}

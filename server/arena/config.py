@@ -12,6 +12,8 @@ class Settings:
     port: int = 8000
     db_path: Path = Path("data/arena.db")
     client_dist: Path = REPO_ROOT / "client" / "dist"
+    # How long a room with no players is kept before its code is freed.
+    room_empty_ttl_s: float = 15 * 60
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -22,4 +24,5 @@ class Settings:
             port=int(env.get("ARENA_PORT", defaults.port)),
             db_path=Path(env.get("ARENA_DB_PATH", defaults.db_path)),
             client_dist=Path(env.get("ARENA_CLIENT_DIST", defaults.client_dist)),
+            room_empty_ttl_s=float(env.get("ARENA_ROOM_EMPTY_TTL_S", defaults.room_empty_ttl_s)),
         )

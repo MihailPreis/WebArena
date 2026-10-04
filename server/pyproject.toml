@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Arena game server"
 requires-python = ">=3.13"
 dependencies = [
+    "aiosqlite>=0.22.1",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
 ]
@@ -35,4 +36,5 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.mypy]
 strict = true
+plugins = ["pydantic.mypy"]
 files = ["arena", "tests"]

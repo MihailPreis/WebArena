@@ -6,7 +6,67 @@
     <title>Arena</title>
   </head>
   <body>
-    <main id="app"></main>
+    <main class="home">
+      <h1>ARENA</h1>
+      <p id="status" role="status"></p>
+
+      <section>
+        <h2>Игрок</h2>
+        <label class="field">
+          Имя
+          <input id="name" type="text" autocomplete="off" spellcheck="false" disabled />
+        </label>
+        <div class="field">
+          Цвет
+          <div id="colors"></div>
+        </div>
+        <p id="profile-message" class="message" role="status"></p>
+      </section>
+
+      <section>
+        <h2>Новая комната</h2>
+        <form id="create-form">
+          <label class="field">
+            Режим
+            <select id="mode"></select>
+          </label>
+          <div class="row">
+            <label class="field">
+              Убийств до победы
+              <input id="kill-limit" type="number" required />
+            </label>
+            <label class="field">
+              Минут на матч
+              <input id="time-limit" type="number" required />
+            </label>
+            <label class="field">
+              Игроков
+              <input id="max-players" type="number" required />
+            </label>
+          </div>
+          <button id="create" type="submit" disabled>Создать комнату</button>
+          <p id="create-message" class="message" role="alert"></p>
+        </form>
+      </section>
+
+      <section>
+        <h2>Войти по коду</h2>
+        <form id="join-form" class="join">
+          <input
+            id="code"
+            type="text"
+            aria-label="Код комнаты"
+            placeholder="XXXX"
+            maxlength="4"
+            autocomplete="off"
+            spellcheck="false"
+            required
+          />
+          <button id="join" type="submit" disabled>Войти</button>
+        </form>
+        <p id="join-message" class="message" role="alert"></p>
+      </section>
+    </main>
     <script type="module" src="/src/main/main.ts"></script>
   </body>
 </html>
