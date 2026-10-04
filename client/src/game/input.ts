@@ -13,6 +13,7 @@ const GAME_KEYS = new Set([
   'ShiftLeft',
   'ShiftRight',
   'KeyC',
+  'KeyR',
   'Tab',
 ]);
 
@@ -21,6 +22,7 @@ export class Input {
   yaw = 0;
   pitch = 0;
   private readonly keys = new Set<string>();
+  private firing = false;
 
   constructor(
     private readonly target: HTMLElement,
@@ -28,7 +30,7 @@ export class Input {
     onLockChange: (locked: boolean) => void,
   ) {
     document.addEventListener('pointerlockchange', () => {
-      if (!this.locked) this.keys.clear();
+      if (!this.locked) this.release();
       onLockChange(this.locked);
     });
     document.addEventListener('mousemove', (event) => {
@@ -47,7 +49,13 @@ export class Input {
       this.keys.add(event.code);
     });
     window.addEventListener('keyup', (event) => this.keys.delete(event.code));
-    window.addEventListener('blur', () => this.keys.clear());
+    window.addEventListener('blur', () => this.release());
+    document.addEventListener('mousedown', (event) => {
+      if (this.locked && event.button === 0) this.firing = true;
+    });
+    document.addEventListener('mouseup', (event) => {
+      if (event.button === 0) this.firing = false;
+    });
   }
 
   get locked(): boolean {
@@ -57,6 +65,11 @@ export class Input {
   lock(): void {
     // Rejects if the browser refuses (e.g. right after Esc); the player can click again.
     void Promise.resolve(this.target.requestPointerLock()).catch(() => undefined);
+  }
+
+  private release(): void {
+    this.keys.clear();
+    this.firing = false;
   }
 
   command(): InputCmd {
@@ -70,6 +83,8 @@ export class Input {
       sprint: this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'),
       yaw: this.yaw,
       pitch: this.pitch,
+      fire: this.firing,
+      reload: this.keys.has('KeyR'),
     };
   }
 }

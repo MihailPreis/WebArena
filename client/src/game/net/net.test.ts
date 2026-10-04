@@ -7,6 +7,7 @@ import { RemoteInterpolator } from './interpolation';
 import { Prediction } from './prediction';
 
 const arena = parseMap(arenaJson);
+const FRESH = { hp: 100, alive: true, ammo: 20, cooldown: 0, reload: 0 };
 const spawn = { position: [0, 0, 16] as [number, number, number], yaw: 0 };
 
 function cmd(overrides: Partial<InputCmd> = {}): InputCmd {
@@ -18,6 +19,8 @@ function cmd(overrides: Partial<InputCmd> = {}): InputCmd {
     sprint: false,
     yaw: 0,
     pitch: 0,
+    fire: false,
+    reload: false,
     ...overrides,
   };
 }
@@ -25,19 +28,19 @@ function cmd(overrides: Partial<InputCmd> = {}): InputCmd {
 describe('Prediction', () => {
   /** A server that simulates the same inputs, `lag` ticks behind the client. */
   function runWithLag(lag: number, ticks: number) {
-    const prediction = new Prediction(arena, createPlayer(spawn));
+    const prediction = new Prediction(arena, createPlayer(spawn), FRESH);
     let server: PlayerState = createPlayer(spawn);
     const inFlight: { seq: number; cmd: InputCmd }[] = [];
     let largestCorrection = 0;
 
     for (let tick = 0; tick < ticks; tick++) {
       const input = cmd({ forward: 1, right: tick % 90 < 45 ? 1 : -1, jump: tick % 50 === 10 });
-      inFlight.push({ seq: prediction.step(input), cmd: input });
+      inFlight.push({ seq: prediction.step(input).seq, cmd: input });
       if (inFlight.length > lag) {
         const arrived = inFlight.shift();
         if (!arrived) continue;
         server = stepPlayer(server, arrived.cmd, arena, TICK_DT);
-        const correction = prediction.reconcile(server, arrived.seq);
+        const correction = prediction.reconcile(server, FRESH, arrived.seq);
         largestCorrection = Math.max(largestCorrection, Math.hypot(...correction));
       }
     }
@@ -56,20 +59,20 @@ describe('Prediction', () => {
   });
 
   it('adopts the server state when the server disagrees', () => {
-    const prediction = new Prediction(arena, createPlayer(spawn));
+    const prediction = new Prediction(arena, createPlayer(spawn), FRESH);
     let seq = 0;
-    for (let i = 0; i < 30; i++) seq = prediction.step(cmd({ forward: 1 }));
+    for (let i = 0; i < 30; i++) seq = prediction.step(cmd({ forward: 1 })).seq;
 
     // The server put the player somewhere else, e.g. after a respawn.
     const moved = stepPlayer(createPlayer({ position: [10, 0, 0], yaw: 0 }), cmd(), arena, TICK_DT);
-    const correction = prediction.reconcile(moved, seq);
+    const correction = prediction.reconcile(moved, FRESH, seq);
     expect(prediction.current.pos).toEqual(moved.pos);
     expect(prediction.previous.pos).toEqual(moved.pos);
     expect(Math.hypot(...correction)).toBeGreaterThan(5);
   });
 
   it('replays only the inputs the server has not seen', () => {
-    const prediction = new Prediction(arena, createPlayer(spawn));
+    const prediction = new Prediction(arena, createPlayer(spawn), FRESH);
     const states: PlayerState[] = [];
     for (let i = 0; i < 20; i++) {
       prediction.step(cmd({ forward: 1 }));
@@ -77,9 +80,40 @@ describe('Prediction', () => {
     }
     const acked = states[9];
     if (!acked) throw new Error('missing state');
-    prediction.reconcile(acked, 9);
+    prediction.reconcile(acked, FRESH, 9);
     expect(prediction.current.pos).toEqual(states[19]?.pos);
     expect(prediction.previous.pos).toEqual(states[18]?.pos);
+  });
+});
+
+describe('Prediction of the weapon and of death', () => {
+  it('predicts shots and ammunition', () => {
+    const prediction = new Prediction(arena, createPlayer(spawn), FRESH);
+    expect(prediction.step(cmd({ fire: true })).fired).toBe(true);
+    expect(prediction.step(cmd({ fire: true })).fired).toBe(false);
+    expect(prediction.weapon.ammo).toBe(19);
+  });
+
+  it('takes ammunition from the server and replays unacknowledged shots', () => {
+    const prediction = new Prediction(arena, createPlayer(spawn), FRESH);
+    const first = prediction.step(cmd({ fire: true })).seq;
+    for (let i = 0; i < 8; i++) prediction.step(cmd());
+    prediction.step(cmd({ fire: true }));
+    expect(prediction.weapon.ammo).toBe(18);
+
+    // The server has simulated only the first shot so far.
+    const afterFirst = { ...FRESH, ammo: 19, cooldown: 8 };
+    prediction.reconcile(prediction.current, afterFirst, first);
+    expect(prediction.weapon.ammo).toBe(18);
+  });
+
+  it('does not move or shoot while dead', () => {
+    const prediction = new Prediction(arena, createPlayer(spawn), FRESH);
+    const { seq } = prediction.step(cmd({ forward: 1 }));
+    prediction.reconcile(prediction.current, { ...FRESH, hp: 0, alive: false }, seq);
+    const frozen = prediction.current;
+    expect(prediction.step(cmd({ forward: 1, fire: true })).fired).toBe(false);
+    expect(prediction.current).toBe(frozen);
   });
 });
 

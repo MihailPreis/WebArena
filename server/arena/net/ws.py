@@ -72,7 +72,7 @@ async def _read(websocket: WebSocket, room: Room, member: Member, conn: WsConnec
             await asyncio.Event().wait()  # The writer closes the socket and ends the session.
             return
         if isinstance(message, InputMsg):
-            room.receive_input(member, message.seq, message.to_cmd())
+            room.receive_input(member, message.seq, message.to_cmd(), message.rt)
         else:
             conn.send(encode({"t": "pong", "id": message.id}))
 

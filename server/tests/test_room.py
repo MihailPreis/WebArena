@@ -94,7 +94,7 @@ def test_tick_simulates_inputs_and_acknowledges_them() -> None:
     member = room.join(ALICE, conn)
     start = member.state.pos
     for seq in range(60):
-        room.receive_input(member, seq, IDLE if seq < 30 else FORWARD)
+        room.receive_input(member, seq, IDLE if seq < 30 else FORWARD, 0.0)
         if seq % 2:
             room.tick()
 
@@ -123,17 +123,17 @@ def test_snapshot_shows_other_players_without_secrets() -> None:
 def test_stale_and_duplicate_inputs_are_ignored() -> None:
     room = make_room()
     member = room.join(ALICE, FakeConn())
-    room.receive_input(member, 5, FORWARD)
-    room.receive_input(member, 5, FORWARD)
-    room.receive_input(member, 3, FORWARD)
-    assert [seq for seq, _ in member.inputs] == [5]
+    room.receive_input(member, 5, FORWARD, 0.0)
+    room.receive_input(member, 5, FORWARD, 0.0)
+    room.receive_input(member, 3, FORWARD, 0.0)
+    assert [queued.seq for queued in member.inputs] == [5]
 
 
 def test_inputs_cannot_be_simulated_faster_than_real_time() -> None:
     room = make_room()
     member = room.join(ALICE, FakeConn())
     for seq in range(100):
-        room.receive_input(member, seq, FORWARD)
+        room.receive_input(member, seq, FORWARD, 0.0)
     room.tick()
     assert member.ack == INPUTS_PER_TICK - 1
 
@@ -142,7 +142,7 @@ def test_inputs_cannot_be_simulated_faster_than_real_time() -> None:
     for _ in range(1000):
         room.tick()
     for seq in range(100, 200):
-        room.receive_input(member, seq, FORWARD)
+        room.receive_input(member, seq, FORWARD, 0.0)
     room.tick()
     assert member.ack == 100 + MAX_INPUT_BURST - 1
 
@@ -154,6 +154,6 @@ def test_falling_out_of_the_world_respawns() -> None:
     member.state = type(state)(
         (0.0, ARENA.kill_y - 1, 100.0), (0.0, 0.0, 0.0), 0.0, 0.0, False, False, False
     )
-    room.receive_input(member, 0, IDLE)
+    room.receive_input(member, 0, IDLE, 0.0)
     room.tick()
     assert member.state.pos in [spawn.position for spawn in ARENA.spawns]

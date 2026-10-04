@@ -57,9 +57,25 @@
     }
   },
   "net": {
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "snapshotRate": 30,
     "interpolationDelayMs": 100,
-    "maxInputBurst": 20
+    "maxInputBurst": 20,
+    "historyS": 1,
+    "maxRewindS": 0.5
+  },
+  "combat": {
+    "maxHealth": 100,
+    "respawnDelayS": 3,
+    "spawnProtectionS": 1.5,
+    "headHeight": 0.3
+  },
+  "weapon": {
+    "damage": 20,
+    "headMultiplier": 2,
+    "fireIntervalTicks": 8,
+    "magazine": 20,
+    "reloadTicks": 90,
+    "range": 100
   }
 }

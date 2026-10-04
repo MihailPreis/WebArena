@@ -56,6 +56,9 @@ class InputCmd:
     sprint: bool
     yaw: float
     pitch: float
+    # Not used by movement; carried here so one input describes everything the player did.
+    fire: bool = False
+    reload: bool = False
 
 
 def create_player(spawn: Spawn) -> PlayerState:

@@ -9,8 +9,18 @@
     <canvas id="view"></canvas>
 
     <div id="hud" hidden>
+      <div id="vignette"></div>
+      <canvas id="viewmodel"></canvas>
+      <div id="damage"></div>
       <div id="crosshair"></div>
       <div id="debug"></div>
+      <ul id="killfeed"></ul>
+      <div id="health" title="Здоровье"></div>
+      <div id="ammo" title="Патроны"></div>
+      <div id="death" hidden>
+        <p id="death-title"></p>
+        <p id="death-timer"></p>
+      </div>
     </div>
 
     <div id="overlay">
@@ -26,6 +36,10 @@
           <dd>движение</dd>
           <dt>Мышь</dt>
           <dd>обзор</dd>
+          <dt>ЛКМ</dt>
+          <dd>огонь</dd>
+          <dt>R</dt>
+          <dd>перезарядка</dd>
           <dt>Пробел</dt>
           <dd>прыжок</dd>
           <dt>Shift</dt>

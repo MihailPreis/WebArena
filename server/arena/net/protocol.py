@@ -45,6 +45,10 @@ class InputMsg(_ClientModel):
     s: bool
     yaw: Annotated[float, Field(ge=-7, le=7, strict=False)]
     pitch: Annotated[float, Field(ge=-1.6, le=1.6, strict=False)]
+    fire: bool
+    reload: bool
+    # Server time the client was drawing other players at; used for lag compensation.
+    rt: Annotated[float, Field(ge=0, le=1e9, strict=False)]
 
     def to_cmd(self) -> InputCmd:
         return InputCmd(
@@ -55,6 +59,8 @@ class InputMsg(_ClientModel):
             sprint=self.s,
             yaw=self.yaw,
             pitch=self.pitch,
+            fire=self.fire,
+            reload=self.reload,
         )
 
 

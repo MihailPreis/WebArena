@@ -6,6 +6,7 @@ import type { InputCmd, PlayerState } from '../sim/movement';
 export const PROTOCOL_VERSION = constants.net.protocolVersion;
 export const SNAPSHOT_RATE = constants.net.snapshotRate;
 export const INTERPOLATION_DELAY_S = constants.net.interpolationDelayMs / 1000;
+export const COMBAT = constants.combat;
 
 export const CloseCode = {
   BAD_MESSAGE: 4000,
@@ -30,6 +31,15 @@ export interface RemoteState {
   crouched: boolean;
 }
 
+/** The private part of the player's own state. */
+export interface SelfStatus {
+  hp: number;
+  alive: boolean;
+  ammo: number;
+  cooldown: number;
+  reload: number;
+}
+
 export interface WelcomeMsg {
   t: 'welcome';
   v: number;
@@ -37,6 +47,7 @@ export interface WelcomeMsg {
   tick: number;
   map: string;
   you: PlayerState;
+  status: SelfStatus;
   players: PublicPlayer[];
 }
 
@@ -46,11 +57,20 @@ export interface SnapshotMsg {
   /** Sequence number of the last input the server has simulated; -1 if none. */
   ack: number;
   you: PlayerState;
+  status: SelfStatus;
+  /** Living players other than the receiver. */
   players: RemoteState[];
 }
 
 export type EventMsg =
-  { t: 'event'; e: 'join'; player: PublicPlayer } | { t: 'event'; e: 'leave'; id: string };
+  | { t: 'event'; e: 'join'; player: PublicPlayer }
+  | { t: 'event'; e: 'leave'; id: string }
+  /** Someone else fired; `from` is their eye, `to` is where the shot stopped. */
+  | { t: 'event'; e: 'shot'; id: string; from: Vec3; to: Vec3 }
+  /** Sent to the shooter and the target only; `from` is the shooter's position. */
+  | { t: 'event'; e: 'hit'; by: string; target: string; dmg: number; head: boolean; from: Vec3 }
+  | { t: 'event'; e: 'kill'; by: string; target: string; head: boolean }
+  | { t: 'event'; e: 'spawn'; id: string; yaw: number };
 
 export interface PongMsg {
   t: 'pong';
@@ -71,10 +91,14 @@ export type ClientMessage =
       s: boolean;
       yaw: number;
       pitch: number;
+      fire: boolean;
+      reload: boolean;
+      /** Server time the client is drawing other players at, for lag compensation. */
+      rt: number;
     }
   | { t: 'ping'; id: number };
 
-export function inputMessage(seq: number, cmd: InputCmd): ClientMessage {
+export function inputMessage(seq: number, cmd: InputCmd, renderTime: number): ClientMessage {
   return {
     t: 'input',
     seq,
@@ -85,5 +109,8 @@ export function inputMessage(seq: number, cmd: InputCmd): ClientMessage {
     s: cmd.sprint,
     yaw: cmd.yaw,
     pitch: cmd.pitch,
+    fire: cmd.fire,
+    reload: cmd.reload,
+    rt: renderTime,
   };
 }

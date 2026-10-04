@@ -1,7 +1,8 @@
-import { Color, Fog, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { Color, Fog, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
 import type { GameMap, Vec3 } from '../sim/map';
 import { PlayerSprites, type RenderPlayer } from './players';
 import { buildSky } from './sky';
+import { Tracers } from './tracers';
 import { buildWorld } from './world';
 
 // The scene is drawn at roughly this many rows and upscaled without smoothing.
@@ -16,7 +17,15 @@ export interface View {
 }
 
 export interface GameRenderer {
-  render(view: View, players: readonly RenderPlayer[]): void;
+  /** `dt` is the time since the previous frame, in seconds. */
+  render(view: View, players: readonly RenderPlayer[], dt: number): void;
+  /** Shows the path of a shot for a moment. */
+  addTracer(from: Vec3, to: Vec3): void;
+  /**
+   * The point in the world that appears at screen position (x, y), in CSS pixels,
+   * `distance` metres from the camera as of the last rendered frame.
+   */
+  screenToWorld(x: number, y: number, distance: number): Vec3;
   resize(): void;
 }
 
@@ -33,6 +42,8 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
   scene.add(sky);
   const sprites = new PlayerSprites();
   scene.add(sprites.group);
+  const tracers = new Tracers();
+  scene.add(tracers.group);
 
   const camera = new PerspectiveCamera(VERTICAL_FOV, 1, 0.05, 200);
   camera.rotation.order = 'YXZ';
@@ -55,8 +66,23 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
 
   return {
     resize,
-    render(view, players) {
+    addTracer(from, to) {
+      tracers.add(from, to);
+    },
+    screenToWorld(x, y, distance) {
+      const rect = canvas.getBoundingClientRect();
+      const point = new Vector3(
+        ((x - rect.left) / rect.width) * 2 - 1,
+        -((y - rect.top) / rect.height) * 2 + 1,
+        0.5,
+      ).unproject(camera);
+      const direction = point.sub(camera.position).normalize();
+      const world = camera.position.clone().addScaledVector(direction, distance);
+      return [world.x, world.y, world.z];
+    },
+    render(view, players, dt) {
       sprites.update(players, view.eye);
+      tracers.update(dt);
       camera.position.set(view.eye[0], view.eye[1], view.eye[2]);
       camera.rotation.set(view.pitch, view.yaw, 0);
       sky.position.copy(camera.position);

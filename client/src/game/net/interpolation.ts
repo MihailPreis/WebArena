@@ -67,10 +67,16 @@ export class RemoteInterpolator {
     }
   }
 
+  /** Server time that is being drawn at `localTime`; 0 before the first snapshot. */
+  renderTime(localTime: number): number {
+    if (this.clockOffset === null) return 0;
+    return Math.max(localTime - this.clockOffset - this.delay, 0);
+  }
+
   /** Where every remote player should be drawn at `localTime`. */
   sample(localTime: number): InterpolatedPlayer[] {
     if (this.clockOffset === null) return [];
-    const time = localTime - this.clockOffset - this.delay;
+    const time = this.renderTime(localTime);
     const result: InterpolatedPlayer[] = [];
 
     for (const [id, samples] of this.history) {

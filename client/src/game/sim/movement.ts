@@ -24,6 +24,9 @@ export interface InputCmd {
   sprint: boolean;
   yaw: number;
   pitch: number;
+  // Not used by movement; carried here so one input describes everything the player did.
+  fire: boolean;
+  reload: boolean;
 }
 
 export function createPlayer(spawn: Spawn): PlayerState {

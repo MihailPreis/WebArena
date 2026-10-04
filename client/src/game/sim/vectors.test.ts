@@ -49,7 +49,7 @@ const arena = parseMap(arenaJson);
 function simulate(testCase: Case): Expected[] {
   let state = createPlayer({ position: testCase.start.pos, yaw: radians(testCase.start.yawDeg) });
   return testCase.segments.map(({ ticks, cmd }) => {
-    const input = { ...cmd, yaw: radians(cmd.yawDeg) };
+    const input = { ...cmd, yaw: radians(cmd.yawDeg), fire: false, reload: false };
     for (let i = 0; i < ticks; i++) state = stepPlayer(state, input, arena, TICK_DT);
     return { pos: state.pos, vel: state.vel, onGround: state.onGround, crouched: state.crouched };
   });

@@ -26,6 +26,8 @@ function cmd(overrides: Partial<InputCmd> = {}): InputCmd {
     sprint: false,
     yaw: 0,
     pitch: 0,
+    fire: false,
+    reload: false,
     ...overrides,
   };
 }

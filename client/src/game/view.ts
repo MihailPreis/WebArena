@@ -5,6 +5,8 @@ import { eyeHeight, type PlayerState } from './sim/movement';
 
 const EYE_RATE = 14;
 const STEP_RATE = 18;
+// Where the camera sinks to when the player dies.
+const DEAD_EYE_HEIGHT = 0.35;
 const CORRECTION_RATE = 12;
 // Larger server corrections (a respawn) are shown at once instead of being smoothed.
 const MAX_SMOOTHED_CORRECTION = 2;
@@ -21,6 +23,13 @@ export class ViewSmoother {
   private eye = PLAYER.standEyeHeight;
   private feetY: number | null = null;
   private correction: Vec3 = [0, 0, 0];
+
+  /** Forgets all smoothing, e.g. after a respawn, so the camera does not glide across the map. */
+  reset(): void {
+    this.eye = PLAYER.standEyeHeight;
+    this.feetY = null;
+    this.correction = [0, 0, 0];
+  }
 
   /**
    * Call when a server correction moved the predicted position by `-delta`:
@@ -47,11 +56,13 @@ export class ViewSmoother {
     yaw: number,
     pitch: number,
     dt: number,
+    dead = false,
   ): View {
     const lerp = (axis: 0 | 1 | 2) => prev.pos[axis] + (cur.pos[axis] - prev.pos[axis]) * alpha;
     const feetY = lerp(1);
 
-    this.eye = approach(this.eye, eyeHeight(cur.crouched), EYE_RATE, dt);
+    const eyeTarget = dead ? DEAD_EYE_HEIGHT : eyeHeight(cur.crouched);
+    this.eye = approach(this.eye, eyeTarget, dead ? EYE_RATE / 3 : EYE_RATE, dt);
     // Only steps are smoothed; jumps and falls must follow the simulation exactly.
     const stepping =
       this.feetY !== null && cur.onGround && Math.abs(feetY - this.feetY) <= PLAYER.stepHeight;

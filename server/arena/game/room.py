@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 import random
 from collections import deque
 from collections.abc import Callable
@@ -7,19 +8,34 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from arena.db.players import Player
-from arena.game.map import GameMap
+from arena.game.combat import Target, aim_direction, eye_position, trace_shot
+from arena.game.map import GameMap, Spawn, Vec3
 from arena.game.movement import TICK_DT, InputCmd, PlayerState, create_player, step_player
+from arena.game.weapon import WeaponState, step_weapon
 from arena.net.protocol import PROTOCOL_VERSION, CloseCode, encode, state_json
 from arena.shared import CONSTANTS
 
 log = logging.getLogger("arena.room")
 
 _NET = CONSTANTS["net"]
+_COMBAT = CONSTANTS["combat"]
+_WEAPON = CONSTANTS["weapon"]
+
 SNAPSHOT_INTERVAL: float = 1 / _NET["snapshotRate"]
 # Inputs a client earns per server tick: one per simulation tick of real time.
 INPUTS_PER_TICK: float = CONSTANTS["tickRate"] / _NET["snapshotRate"]
 MAX_INPUT_BURST: float = _NET["maxInputBurst"]
 MAX_QUEUED_INPUTS = 120
+HISTORY_S: float = _NET["historyS"]
+MAX_REWIND_S: float = _NET["maxRewindS"]
+# A jump this large between two history samples is a respawn; mirrors the client's interpolation.
+TELEPORT_DISTANCE = 5.0
+
+MAX_HEALTH: int = _COMBAT["maxHealth"]
+RESPAWN_DELAY_S: float = _COMBAT["respawnDelayS"]
+SPAWN_PROTECTION_S: float = _COMBAT["spawnProtectionS"]
+DAMAGE: int = _WEAPON["damage"]
+HEAD_MULTIPLIER: float = _WEAPON["headMultiplier"]
 
 
 class RoomFull(Exception):
@@ -42,6 +58,14 @@ class Outbox(Protocol):
     def close(self, code: int) -> None: ...
 
 
+@dataclass(frozen=True)
+class QueuedInput:
+    seq: int
+    cmd: InputCmd
+    render_time: float
+    """Server time at which the client was drawing other players when it sent this input."""
+
+
 @dataclass
 class Member:
     """A player's slot in the room. Survives disconnects, so the score is kept."""
@@ -51,13 +75,20 @@ class Member:
     conn: Outbox | None = None
     kills: int = 0
     deaths: int = 0
-    inputs: deque[tuple[int, InputCmd]] = field(default_factory=deque)
+    hp: int = MAX_HEALTH
+    alive: bool = True
+    weapon: WeaponState = field(default_factory=WeaponState)
+    respawn_at: float = 0.0
+    protected_until: float = 0.0
+    inputs: deque[QueuedInput] = field(default_factory=deque)
     last_seq: int = -1
     """Highest input sequence number received."""
     ack: int = -1
     """Highest input sequence number simulated."""
     credit: float = 0.0
     """How many inputs may still be simulated; refilled in real time."""
+    history: deque[tuple[float, Vec3, bool]] = field(default_factory=deque)
+    """Recent (time, position, crouched) samples, for lag compensation."""
 
 
 class Room:
@@ -84,6 +115,11 @@ class Room:
     def connected(self) -> list[Member]:
         return [member for member in self.members.values() if member.conn is not None]
 
+    @property
+    def time(self) -> float:
+        """Game time in seconds. Clients derive the same value from the snapshot tick."""
+        return self.tick_no * SNAPSHOT_INTERVAL
+
     def join(self, player: Player, conn: Outbox) -> Member:
         member = self.members.get(player.id)
         rejoining = member is not None and member.conn is not None
@@ -92,17 +128,16 @@ class Room:
             member.conn.close(CloseCode.REPLACED)
         elif len(self.connected) >= self.settings.max_players:
             raise RoomFull
-        state = create_player(random.choice(self.map.spawns))
         if member is None:
-            member = Member(player=player, state=state)
+            member = Member(player=player, state=create_player(self.map.spawns[0]))
             self.members[player.id] = member
         member.player = player
-        member.state = state
         member.conn = conn
         member.inputs.clear()
         member.last_seq = -1
         member.ack = -1
         member.credit = 0.0
+        self._spawn(member)
         self.empty_since = None
 
         others = [m for m in self.connected if m is not member]
@@ -114,7 +149,8 @@ class Room:
                     "id": player.id,
                     "tick": self.tick_no,
                     "map": self.map.name,
-                    "you": state_json(state),
+                    "you": state_json(member.state),
+                    "status": _status(member),
                     "players": [_public(m.player) for m in others],
                 }
             )
@@ -128,30 +164,57 @@ class Room:
             return  # Already replaced by a newer connection.
         member.conn = None
         member.inputs.clear()
+        member.history.clear()
         self._broadcast({"t": "event", "e": "leave", "id": member.player.id})
         if not self.connected:
             self.empty_since = self._clock()
 
-    def receive_input(self, member: Member, seq: int, cmd: InputCmd) -> None:
+    def receive_input(self, member: Member, seq: int, cmd: InputCmd, render_time: float) -> None:
         if seq <= member.last_seq or len(member.inputs) >= MAX_QUEUED_INPUTS:
             return
         member.last_seq = seq
-        member.inputs.append((seq, cmd))
+        member.inputs.append(QueuedInput(seq, cmd, render_time))
 
     def tick(self) -> None:
         """Simulates queued inputs and sends every client a snapshot."""
         self.tick_no += 1
+        now = self.time
         connected = self.connected
+
         for member in connected:
-            # A client cannot move faster by sending inputs faster than real time.
+            if not member.alive and now >= member.respawn_at:
+                self._spawn(member)
+                self._broadcast(
+                    {
+                        "t": "event",
+                        "e": "spawn",
+                        "id": member.player.id,
+                        "yaw": member.state.yaw,
+                    }
+                )
+
+        for member in connected:
+            # A client cannot act faster by sending inputs faster than real time.
             member.credit = min(member.credit + INPUTS_PER_TICK, MAX_INPUT_BURST)
             while member.inputs and member.credit >= 1:
-                seq, cmd = member.inputs.popleft()
+                queued = member.inputs.popleft()
                 member.credit -= 1
-                member.ack = seq
+                member.ack = queued.seq
+                if not member.alive:
+                    continue  # Inputs of the dead are acknowledged but have no effect.
+                cmd = queued.cmd
                 member.state = step_player(member.state, cmd, self.map, TICK_DT)
                 if member.state.pos[1] < self.map.kill_y:
                     member.state = create_player(random.choice(self.map.spawns))
+                member.weapon, fired = step_weapon(member.weapon, cmd.fire, cmd.reload)
+                if fired:
+                    self._fire(member, cmd, queued.render_time)
+
+        for member in connected:
+            if member.alive:
+                member.history.append((now, member.state.pos, member.state.crouched))
+                while member.history[0][0] < now - HISTORY_S:
+                    member.history.popleft()
 
         views = {
             member.player.id: {
@@ -161,6 +224,7 @@ class Room:
                 "crouched": member.state.crouched,
             }
             for member in connected
+            if member.alive
         }
         for member in connected:
             if member.conn is None:
@@ -172,6 +236,7 @@ class Room:
                         "tick": self.tick_no,
                         "ack": member.ack,
                         "you": state_json(member.state),
+                        "status": _status(member),
                         "players": [v for pid, v in views.items() if pid != member.player.id],
                     }
                 )
@@ -203,11 +268,123 @@ class Room:
                 next_tick = loop.time()  # Stalled for too long to catch up; start over.
             await asyncio.sleep(max(delay, 0))
 
+    def _fire(self, shooter: Member, cmd: InputCmd, render_time: float) -> None:
+        now = self.time
+        shooter.protected_until = 0.0  # Attacking gives up spawn protection.
+        # Judge the shot against what the shooter saw: other players are drawn slightly
+        # in the past, so rewind them to that moment, within a bounded window.
+        seen_at = min(max(render_time, now - MAX_REWIND_S), now)
+        targets = [
+            Target(m.player.id, *_position_at(m, seen_at))
+            for m in self.connected
+            if m is not shooter and m.alive
+        ]
+        origin = eye_position(shooter.state)
+        result = trace_shot(self.map, origin, aim_direction(cmd.yaw, cmd.pitch), targets)
+        self._broadcast(
+            {
+                "t": "event",
+                "e": "shot",
+                "id": shooter.player.id,
+                "from": origin,
+                "to": result.end,
+            },
+            skip=shooter,
+        )
+        if result.target_id is None:
+            return
+        target = self.members[result.target_id]
+        if now < target.protected_until:
+            return
+        damage = round(DAMAGE * HEAD_MULTIPLIER) if result.head else DAMAGE
+        target.hp = max(target.hp - damage, 0)
+        hit = encode(
+            {
+                "t": "event",
+                "e": "hit",
+                "by": shooter.player.id,
+                "target": target.player.id,
+                "dmg": damage,
+                "head": result.head,
+                "from": shooter.state.pos,
+            }
+        )
+        for involved in (shooter, target):
+            if involved.conn is not None:
+                involved.conn.send(hit)
+        if target.hp == 0:
+            target.alive = False
+            target.deaths += 1
+            target.respawn_at = now + RESPAWN_DELAY_S
+            target.history.clear()
+            shooter.kills += 1
+            self._broadcast(
+                {
+                    "t": "event",
+                    "e": "kill",
+                    "by": shooter.player.id,
+                    "target": target.player.id,
+                    "head": result.head,
+                }
+            )
+
+    def _spawn(self, member: Member) -> None:
+        member.state = create_player(self._pick_spawn(member))
+        member.hp = MAX_HEALTH
+        member.alive = True
+        member.weapon = WeaponState()
+        member.protected_until = self.time + SPAWN_PROTECTION_S
+        member.history.clear()
+
+    def _pick_spawn(self, member: Member) -> Spawn:
+        """The spawn point farthest from every living opponent."""
+        enemies = [m.state.pos for m in self.connected if m is not member and m.alive]
+        if not enemies:
+            return random.choice(self.map.spawns)
+        return max(
+            self.map.spawns,
+            key=lambda spawn: min(math.dist(spawn.position, enemy) for enemy in enemies),
+        )
+
     def _broadcast(self, message: dict[str, Any], skip: Member | None = None) -> None:
         text = encode(message)
         for member in self.connected:
             if member is not skip and member.conn is not None:
                 member.conn.send(text)
+
+
+def _position_at(member: Member, time: float) -> tuple[Vec3, bool]:
+    """Where a player was at `time`, interpolated the way clients interpolate snapshots."""
+    history = member.history
+    if not history or time >= history[-1][0]:
+        return member.state.pos, member.state.crouched
+    if time <= history[0][0]:
+        return history[0][1], history[0][2]
+    for i in range(len(history) - 1, 0, -1):
+        t0, p0, c0 = history[i - 1]
+        t1, p1, c1 = history[i]
+        if t0 <= time:
+            if math.dist(p0, p1) >= TELEPORT_DISTANCE:
+                return p1, c1
+            alpha = (time - t0) / (t1 - t0)
+            pos = (
+                p0[0] + (p1[0] - p0[0]) * alpha,
+                p0[1] + (p1[1] - p0[1]) * alpha,
+                p0[2] + (p1[2] - p0[2]) * alpha,
+            )
+            return pos, (c0 if alpha < 0.5 else c1)
+    return history[0][1], history[0][2]
+
+
+def _status(member: Member) -> dict[str, Any]:
+    """The private part of a player's state: only that player receives it."""
+    return {
+        "hp": member.hp,
+        "alive": member.alive,
+        "ammo": member.weapon.ammo,
+        "cooldown": member.weapon.cooldown,
+        "reload": member.weapon.reload,
+    }
 
 
 def _public(player: Player) -> dict[str, str]:

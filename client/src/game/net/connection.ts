@@ -67,8 +67,8 @@ export class Connection {
     return this.socket.readyState === WebSocket.OPEN;
   }
 
-  sendInput(seq: number, cmd: InputCmd): void {
-    this.send(inputMessage(seq, cmd));
+  sendInput(seq: number, cmd: InputCmd, renderTime: number): void {
+    this.send(inputMessage(seq, cmd, renderTime));
   }
 
   private send(message: ClientMessage): void {
