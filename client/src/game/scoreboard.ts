@@ -29,6 +29,21 @@ export function winningTeam(scores: Record<Team, number>): Team | null {
   return scores.blue > scores.red ? 'blue' : 'red';
 }
 
+/** How the match ended for one player. */
+export type Outcome = 'win' | 'loss' | 'draw';
+
+/** The result of a finished match from the point of view of the player `myId`. */
+export function outcomeFor(state: RoomStateMsg, myId: string): Outcome {
+  if (state.teams) {
+    const winner = winningTeam(state.teams);
+    if (!winner) return 'draw';
+    return state.players.find((row) => row.id === myId)?.team === winner ? 'win' : 'loss';
+  }
+  const { winner } = resultTitle(state.players);
+  if (!winner) return 'draw';
+  return winner.id === myId ? 'win' : 'loss';
+}
+
 /** "Синие 12 : 9 Красные" */
 export function teamScoreLine(scores: Record<Team, number>): string {
   return `${TEAM_NAMES.blue} ${scores.blue} : ${scores.red} ${TEAM_NAMES.red}`;
@@ -36,14 +51,22 @@ export function teamScoreLine(scores: Record<Team, number>): string {
 
 function coloured(text: string, color: string): HTMLSpanElement {
   const span = document.createElement('span');
+  span.className = 'name';
   span.textContent = text;
-  span.style.color = color;
+  span.style.setProperty('--c', color);
   return span;
 }
+
+const OUTCOME_TITLES: Record<Outcome, string> = {
+  win: 'Победа',
+  loss: 'Поражение',
+  draw: 'Ничья',
+};
 
 /** The score table shown while Tab is held and after a match. Names are set as text. */
 export class Scoreboard {
   private readonly root: HTMLElement;
+  private readonly eyebrow: HTMLElement;
   private readonly title: HTMLElement;
   private readonly body: HTMLElement;
 
@@ -52,6 +75,8 @@ export class Scoreboard {
     private readonly myId: string,
   ) {
     this.root = root;
+    this.eyebrow = document.createElement('p');
+    this.eyebrow.className = 'eyebrow';
     this.title = document.createElement('p');
     this.title.className = 'scoreboard-title';
     const table = document.createElement('table');
@@ -62,7 +87,7 @@ export class Scoreboard {
       head.append(cell);
     }
     this.body = table.createTBody();
-    root.replaceChildren(this.title, table);
+    root.replaceChildren(this.eyebrow, this.title, table);
   }
 
   set visible(visible: boolean) {
@@ -84,10 +109,10 @@ export class Scoreboard {
       for (const team of order) {
         const header = document.createElement('tr');
         header.className = 'team';
+        header.style.setProperty('--c', TEAM_COLORS[team]);
         const cell = header.insertCell();
         cell.colSpan = COLUMNS.length;
-        cell.textContent = `${TEAM_NAMES[team]} — ${state.teams[team]}`;
-        cell.style.color = TEAM_COLORS[team];
+        cell.textContent = `${TEAM_NAMES[team]} · ${state.teams[team]}`;
         rows.push(header);
         for (const player of state.players) {
           if (player.team === team) rows.push(this.playerRow(player));
@@ -100,28 +125,33 @@ export class Scoreboard {
   }
 
   private updateTitle(state: RoomStateMsg, timeLeft: number | null): void {
+    const limit = `до ${state.settings.killLimit} убийств`;
+    this.root.dataset.outcome = '';
     this.title.textContent = '';
     if (state.state === 'results') {
+      const outcome = outcomeFor(state, this.myId);
+      this.root.dataset.outcome = outcome;
+      const next = timeLeft === null ? '' : ` · новый матч через ${Math.ceil(timeLeft)}`;
+      const { winner } = resultTitle(state.players);
       if (state.teams) {
-        const winner = winningTeam(state.teams);
-        if (winner) {
-          const name = TEAM_NAMES[winner].toLowerCase();
-          this.title.append('Матч окончен — победили ', coloured(name, TEAM_COLORS[winner]));
-        } else {
-          this.title.append('Матч окончен — ничья');
-        }
+        this.eyebrow.textContent = `Матч окончен · ${teamScoreLine(state.teams)}${next}`;
+        this.title.textContent = OUTCOME_TITLES[outcome];
+      } else if (outcome === 'loss' && winner) {
+        this.eyebrow.textContent = `Матч окончен${next}`;
+        this.title.append('Победил ', coloured(winner.name, winner.color));
       } else {
-        const { text, winner } = resultTitle(state.players);
-        this.title.append(text);
-        if (winner) this.title.append(coloured(winner.name, winner.color));
+        this.eyebrow.textContent = `Матч окончен${next}`;
+        this.title.textContent = OUTCOME_TITLES[outcome];
       }
-      if (timeLeft !== null) this.title.append(` · новый матч через ${Math.ceil(timeLeft)}`);
     } else if (state.state === 'waiting') {
-      this.title.textContent = 'Ожидание игроков — счёт пока не идёт';
+      this.eyebrow.textContent = 'Счёт пока не идёт';
+      this.title.textContent = 'Ожидание игроков';
     } else if (state.teams) {
-      this.title.textContent = `${teamScoreLine(state.teams)} · до ${state.settings.killLimit}`;
+      this.eyebrow.textContent = `Team Deathmatch · ${limit}`;
+      this.title.textContent = teamScoreLine(state.teams);
     } else {
-      this.title.textContent = `До ${state.settings.killLimit} убийств`;
+      this.eyebrow.textContent = `Deathmatch · ${limit}`;
+      this.title.textContent = timeLeft === null ? 'Таблица' : formatClock(timeLeft);
     }
   }
 
@@ -131,8 +161,10 @@ export class Scoreboard {
     row.classList.toggle('offline', !player.online);
     const name = row.insertCell();
     if (player.team) {
-      // The name takes the team's colour; the dot keeps the player's own.
-      const dot = coloured('■ ', player.color);
+      // The name takes the team's colour; the square keeps the player's own.
+      const dot = document.createElement('i');
+      dot.className = 'dot';
+      dot.style.background = player.color;
       name.append(dot, coloured(player.name, TEAM_COLORS[player.team]));
     } else {
       name.append(coloured(player.name, player.color));

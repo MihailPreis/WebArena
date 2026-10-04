@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { ScoreRow } from './net/protocol';
-import { formatClock, killDeathRatio, resultTitle, teamScoreLine, winningTeam } from './scoreboard';
+import type { RoomStateMsg, ScoreRow, Team } from './net/protocol';
+import {
+  formatClock,
+  killDeathRatio,
+  outcomeFor,
+  resultTitle,
+  teamScoreLine,
+  winningTeam,
+} from './scoreboard';
 
 function row(name: string, kills: number, deaths: number): ScoreRow {
   return { id: name, name, color: '#ffffff', team: null, kills, deaths, ping: 20, online: true };
@@ -53,5 +60,40 @@ describe('team scores', () => {
 
   it('formats the score line', () => {
     expect(teamScoreLine({ blue: 12, red: 9 })).toBe('Синие 12 : 9 Красные');
+  });
+});
+
+function results(players: ScoreRow[], teams: Record<Team, number> | null): RoomStateMsg {
+  return {
+    t: 'room',
+    state: 'results',
+    timeLeft: 10,
+    hostId: 'Alice',
+    teams,
+    settings: { mode: 'deathmatch', killLimit: 25, timeLimitMin: 10, maxPlayers: 8 },
+    players,
+  };
+}
+
+describe('outcomeFor', () => {
+  it('tells the winner of a free-for-all from the rest', () => {
+    const state = results([row('Alice', 25, 3), row('Bob', 10, 8)], null);
+    expect(outcomeFor(state, 'Alice')).toBe('win');
+    expect(outcomeFor(state, 'Bob')).toBe('loss');
+  });
+
+  it('is a draw when the top two are level', () => {
+    const state = results([row('Alice', 5, 5), row('Bob', 5, 5)], null);
+    expect(outcomeFor(state, 'Alice')).toBe('draw');
+  });
+
+  it('follows the team in a team mode', () => {
+    const players = [
+      { ...row('Alice', 2, 9), team: 'blue' as const },
+      { ...row('Bob', 9, 2), team: 'red' as const },
+    ];
+    expect(outcomeFor(results(players, { blue: 12, red: 9 }), 'Alice')).toBe('win');
+    expect(outcomeFor(results(players, { blue: 12, red: 9 }), 'Bob')).toBe('loss');
+    expect(outcomeFor(results(players, { blue: 4, red: 4 }), 'Bob')).toBe('draw');
   });
 });

@@ -18,6 +18,8 @@ export interface RenderPlayer {
   pos: Vec3;
   yaw: number;
   crouched: boolean;
+  /** Whether the name floats over the player in the world. */
+  nameTag: boolean;
 }
 
 interface Entry {
@@ -71,6 +73,7 @@ export class PlayerSprites {
 
       const height = player.crouched ? PLAYER.crouchHeight : PLAYER.standHeight;
       entry.tag.position.set(x, y + height + NAME_GAP, z);
+      entry.tag.visible = player.nameTag;
     }
     for (const [id, entry] of this.entries) {
       if (!seen.has(id)) this.remove(id, entry);

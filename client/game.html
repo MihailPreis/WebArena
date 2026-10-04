@@ -11,88 +11,217 @@
     <div id="hud" hidden>
       <div id="vignette"></div>
       <canvas id="viewmodel"></canvas>
+      <div id="tags"></div>
+      <div id="floaters"></div>
       <div id="damage"></div>
-      <div id="crosshair"></div>
+      <div id="crosshair">
+        <i class="dot"></i>
+        <i class="line up"></i>
+        <i class="line down"></i>
+        <i class="line left"></i>
+        <i class="line right"></i>
+        <i class="tick a"></i>
+        <i class="tick b"></i>
+        <i class="tick c"></i>
+        <i class="tick d"></i>
+      </div>
+
+      <div id="top">
+        <div id="compass" title="Курс">
+          <div id="compass-strip"></div>
+          <div id="compass-heading"></div>
+        </div>
+        <div id="compass-needle"></div>
+        <div id="match">
+          <div id="match-left" class="side"><span class="label"></span><b></b></div>
+          <div id="match-clock"></div>
+          <div id="match-right" class="side"><b></b><span class="label"></span></div>
+        </div>
+        <div id="network" hidden></div>
+      </div>
+
       <div id="debug"></div>
-      <div id="match"></div>
-      <div id="network" hidden></div>
-      <div id="hint" hidden></div>
-      <div id="scoreboard" hidden></div>
       <ul id="killfeed"></ul>
-      <div id="health" title="Здоровье"></div>
-      <div id="ammo" title="Патроны"></div>
+      <div id="hint" hidden></div>
+
+      <div id="player-card" class="card">
+        <div class="card-body">
+          <div class="card-title">
+            <span id="player-name"></span>
+            <span id="player-sub"></span>
+          </div>
+          <div class="health-row">
+            <div id="health-bar" title="Здоровье">
+              <div id="health-trail"></div>
+              <div id="health-fill"></div>
+            </div>
+            <div id="health"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="weapon-card" class="card">
+        <div class="card-body">
+          <div id="weapon-name">Винтовка</div>
+          <div class="ammo-row" title="Патроны">
+            <span id="ammo"></span>
+            <span id="ammo-max"></span>
+          </div>
+          <div id="ammo-cells"></div>
+          <div id="reload-hint"><kbd>R</kbd><span></span></div>
+        </div>
+      </div>
+
       <div id="death" hidden>
+        <p class="eyebrow">Вы выбыли</p>
         <p id="death-title"></p>
+        <div id="death-bar"><div></div></div>
         <p id="death-timer"></p>
       </div>
+      <div id="scoreboard" hidden></div>
     </div>
 
     <div id="overlay">
-      <div class="panel">
-        <h1 id="room-title">Arena</h1>
-        <p id="message">Загрузка…</p>
-        <p id="room-info"></p>
-        <p id="player"></p>
-        <button id="play" type="button" hidden>Играть</button>
-        <button id="copy-link" type="button" hidden>Скопировать ссылку-приглашение</button>
-        <dl id="controls" hidden>
-          <dt>W A S D</dt>
-          <dd>движение</dd>
-          <dt>Мышь</dt>
-          <dd>обзор</dd>
-          <dt>ЛКМ</dt>
-          <dd>огонь</dd>
-          <dt>R</dt>
-          <dd>перезарядка</dd>
-          <dt>Пробел</dt>
-          <dd>прыжок</dd>
-          <dt>Shift</dt>
-          <dd>бег</dd>
-          <dt>C</dt>
-          <dd>присесть</dd>
-          <dt>Tab</dt>
-          <dd>таблица</dd>
-          <dt>Esc</dt>
-          <dd>меню</dd>
-        </dl>
-        <label id="sensitivity-row" hidden>
-          Чувствительность мыши
-          <input id="sensitivity" type="range" step="0.05" />
-          <output id="sensitivity-value"></output>
-        </label>
-        <label id="volume-row" hidden>
-          Громкость
-          <input id="volume" type="range" min="0" max="1" step="0.05" />
-        </label>
-        <div id="team-picker" hidden>
-          <p>Команда</p>
-          <div class="team-buttons">
-            <button type="button" data-team="blue"></button>
-            <button type="button" data-team="red"></button>
-          </div>
-          <p id="team-note"></p>
+      <div class="slab"></div>
+      <header class="menu-head">
+        <div>
+          <p id="room-info" class="eyebrow"></p>
+          <h1 id="room-title">Arena</h1>
         </div>
-        <form id="host-settings" hidden>
-          <p>Вы хост комнаты</p>
-          <div class="host-fields">
-            <label>
-              Режим
-              <select id="host-mode"></select>
-            </label>
-            <label>
-              Убийств до победы
-              <input id="host-kill-limit" type="number" required />
-            </label>
-            <label>
-              Минут на матч
-              <input id="host-time-limit" type="number" required />
-            </label>
-          </div>
-          <button id="host-apply" type="submit">Применить</button>
-          <p id="host-note"></p>
-        </form>
-        <a href="/">На главную</a>
+        <div id="tabs" class="tabs" role="tablist" hidden>
+          <button type="button" role="tab" data-tab="game">Игра</button>
+          <button type="button" role="tab" data-tab="settings">Настройки</button>
+          <button type="button" role="tab" data-tab="host" hidden>Хост</button>
+        </div>
+      </header>
+      <p id="message">Загрузка…</p>
+
+      <div id="menu" hidden>
+        <div class="actions">
+          <button id="play" class="button primary" type="button">Играть</button>
+          <button id="copy-link" class="button" type="button" hidden>Пригласить по ссылке</button>
+          <a class="home-link" href="/">Выйти на главную</a>
+          <p class="actions-note">Esc — закрыть меню · Tab — таблица</p>
+        </div>
+
+        <div class="panels">
+          <section data-panel="game" role="tabpanel">
+            <div id="team-picker" hidden>
+              <div class="panel-head">
+                <h2>Отряд</h2>
+                <p id="team-note"></p>
+              </div>
+              <div class="squads">
+                <button type="button" class="squad" data-team="blue"></button>
+                <button type="button" class="squad" data-team="red"></button>
+              </div>
+            </div>
+            <div id="roster" hidden>
+              <div class="panel-head">
+                <h2>Игроки</h2>
+                <p id="roster-note"></p>
+              </div>
+              <ul id="roster-list"></ul>
+            </div>
+          </section>
+
+          <section data-panel="settings" role="tabpanel" hidden>
+            <div class="sliders">
+              <label>
+                <span>Чувствительность мыши <output id="sensitivity-value"></output></span>
+                <input id="sensitivity" type="range" step="0.05" />
+              </label>
+              <label>
+                <span>Громкость <output id="volume-value"></output></span>
+                <input id="volume" type="range" min="0" max="1" step="0.05" />
+              </label>
+            </div>
+            <div class="panel-head"><h2>Управление</h2></div>
+            <dl id="controls">
+              <div>
+                <dt>W A S D</dt>
+                <dd>движение</dd>
+              </div>
+              <div>
+                <dt>Мышь</dt>
+                <dd>обзор</dd>
+              </div>
+              <div>
+                <dt>ЛКМ</dt>
+                <dd>огонь</dd>
+              </div>
+              <div>
+                <dt>R</dt>
+                <dd>перезарядка</dd>
+              </div>
+              <div>
+                <dt>Пробел</dt>
+                <dd>прыжок</dd>
+              </div>
+              <div>
+                <dt>Shift</dt>
+                <dd>бег</dd>
+              </div>
+              <div>
+                <dt>C</dt>
+                <dd>присесть</dd>
+              </div>
+              <div>
+                <dt>Tab</dt>
+                <dd>таблица</dd>
+              </div>
+              <div>
+                <dt>Esc</dt>
+                <dd>меню</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section data-panel="host" role="tabpanel" hidden>
+            <form id="host-settings">
+              <div class="panel-head">
+                <h2>Правила матча</h2>
+                <p id="host-note"></p>
+              </div>
+              <div class="host-fields">
+                <label>
+                  Режим
+                  <select id="host-mode"></select>
+                </label>
+                <label>
+                  Убийств до победы
+                  <input id="host-kill-limit" type="number" required />
+                </label>
+                <label>
+                  Минут на матч
+                  <input id="host-time-limit" type="number" required />
+                </label>
+              </div>
+              <button id="host-apply" class="button" type="submit">Применить</button>
+            </form>
+          </section>
+        </div>
+
+        <aside id="me">
+          <p class="eyebrow">Боец</p>
+          <p id="player"></p>
+          <dl id="me-stats">
+            <div>
+              <dd id="me-kills">0</dd>
+              <dt>убийств</dt>
+            </div>
+            <div>
+              <dd id="me-deaths">0</dd>
+              <dt>смертей</dt>
+            </div>
+            <div>
+              <dd id="me-ping">—</dd>
+              <dt>мс</dt>
+            </div>
+          </dl>
+        </aside>
       </div>
+      <a id="back" class="home-link" href="/">На главную</a>
     </div>
 
     <script type="module" src="/src/game/main.ts"></script>

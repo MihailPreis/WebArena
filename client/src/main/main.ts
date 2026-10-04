@@ -223,17 +223,34 @@ function setupLeaderboard(myId: string | null): void {
 
 async function showMyStats(session: Session): Promise<void> {
   const stats = await getPlayerStats(session.profile.id);
-  element('my-stats').textContent =
-    stats.matches === 0
-      ? 'Вы ещё не сыграли ни одного матча.'
-      : [
-          `Вы: матчей ${stats.matches}`,
-          `побед ${stats.wins}`,
-          `убийств ${stats.kills}`,
-          `смертей ${stats.deaths}`,
-          `K/D ${stats.kd.toFixed(2)}`,
-          `точность ${Math.round(stats.accuracy * 100)} %`,
-        ].join(' · ');
+  element('my-stats').hidden = false;
+  const note = element('my-stats-note');
+  const list = element('my-stats-list');
+  if (stats.matches === 0) {
+    note.textContent = 'Вы ещё не сыграли ни одного матча.';
+    list.hidden = true;
+    return;
+  }
+  note.textContent = '';
+  const tiles: [string, string][] = [
+    [String(stats.matches), 'матчей'],
+    [String(stats.wins), 'побед'],
+    [String(stats.kills), 'убийств'],
+    [String(stats.deaths), 'смертей'],
+    [stats.kd.toFixed(2), 'K/D'],
+    [`${Math.round(stats.accuracy * 100)} %`, 'точность'],
+  ];
+  list.replaceChildren(
+    ...tiles.map(([value, label]) => {
+      const tile = document.createElement('div');
+      const number = document.createElement('dd');
+      number.textContent = value;
+      const caption = document.createElement('dt');
+      caption.textContent = label;
+      tile.append(number, caption);
+      return tile;
+    }),
+  );
 }
 
 ensureSession()

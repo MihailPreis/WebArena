@@ -26,6 +26,11 @@ export interface GameRenderer {
    * `distance` metres from the camera as of the last rendered frame.
    */
   screenToWorld(x: number, y: number, distance: number): Vec3;
+  /**
+   * Where a point of the world appears on screen, in CSS pixels, as of the last
+   * rendered frame; null when the point is behind the camera.
+   */
+  worldToScreen(pos: Vec3): { x: number; y: number } | null;
   resize(): void;
 }
 
@@ -79,6 +84,16 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
       const direction = point.sub(camera.position).normalize();
       const world = camera.position.clone().addScaledVector(direction, distance);
       return [world.x, world.y, world.z];
+    },
+    worldToScreen(pos) {
+      const point = new Vector3(pos[0], pos[1], pos[2]).project(camera);
+      // Past the far plane in clip space means behind the camera.
+      if (point.z > 1) return null;
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: rect.left + ((point.x + 1) / 2) * rect.width,
+        y: rect.top + ((1 - point.y) / 2) * rect.height,
+      };
     },
     render(view, players, dt) {
       sprites.update(players, view.eye);

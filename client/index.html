@@ -5,9 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Arena</title>
   </head>
-  <body>
+  <body class="home-page">
+    <div class="slab"></div>
     <main class="home">
-      <h1>ARENA</h1>
+      <header class="hero">
+        <p class="eyebrow">Сетевой шутер в браузере · до 8 игроков</p>
+        <h1>Arena</h1>
+      </header>
       <p id="status" role="status"></p>
 
       <div class="forms">
@@ -45,7 +49,9 @@
                 <input id="max-players" type="number" required />
               </label>
             </div>
-            <button id="create" type="submit" disabled>Создать комнату</button>
+            <button id="create" class="button primary" type="submit" disabled>
+              Создать комнату
+            </button>
             <p id="create-message" class="message" role="alert"></p>
           </form>
         </section>
@@ -63,7 +69,7 @@
               spellcheck="false"
               required
             />
-            <button id="join" type="submit" disabled>Войти</button>
+            <button id="join" class="button" type="submit" disabled>Войти</button>
           </form>
           <p id="join-message" class="message" role="alert"></p>
         </section>
@@ -71,7 +77,7 @@
 
       <section id="leaderboard">
         <h2>Лучшие игроки</h2>
-        <div id="leaderboard-tabs" role="group" aria-label="Рейтинг">
+        <div id="leaderboard-tabs" class="tabs" role="group" aria-label="Рейтинг">
           <button type="button" data-by="kd">K/D</button>
           <button type="button" data-by="kills">Убийства</button>
           <button type="button" data-by="wins">Победы</button>
@@ -91,7 +97,11 @@
           <tbody id="leaderboard-body"></tbody>
         </table>
         <p id="leaderboard-note" class="note"></p>
-        <p id="my-stats" class="note"></p>
+        <div id="my-stats" hidden>
+          <p class="eyebrow">Ваша статистика</p>
+          <p id="my-stats-note"></p>
+          <dl id="my-stats-list"></dl>
+        </div>
       </section>
     </main>
     <script type="module" src="/src/main/main.ts"></script>

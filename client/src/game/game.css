@@ -13,43 +13,27 @@ body.game {
   image-rendering: pixelated;
 }
 
+/* A player's name, tinted towards white so that any colour reads on a dark plate. */
+.name {
+  color: color-mix(in srgb, var(--c, var(--ink)) 70%, white);
+  text-transform: none;
+}
+
+/* ---------- In-match interface ---------- */
+
+/* Sizes are in em, so the whole interface scales with the height of the window. */
 #hud {
   position: fixed;
   inset: 0;
   pointer-events: none;
-}
-
-#crosshair {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 4px;
-  height: 4px;
-  margin: -2px 0 0 -2px;
-  background: #fff;
-  outline: 1px solid #000;
-}
-
-/* Hit confirmation: four ticks around the crosshair. */
-#crosshair.hit::before,
-#crosshair.hit::after {
-  content: '';
-  position: absolute;
-  left: -9px;
-  top: 1px;
-  width: 22px;
-  height: 2px;
-  background: linear-gradient(90deg, #fff 0 7px, transparent 7px 15px, #fff 15px);
-  transform: rotate(45deg);
-}
-
-#crosshair.hit::after {
-  transform: rotate(-45deg);
-}
-
-#crosshair.strong::before,
-#crosshair.strong::after {
-  background: linear-gradient(90deg, #ff4d3d 0 7px, transparent 7px 15px, #ff4d3d 15px);
+  font-size: clamp(11px, 2.2vh, 22px);
+  line-height: 1;
+  text-transform: uppercase;
+  /* How far the cards trail behind the camera, in pixels; set every frame. */
+  --sway-x: 0;
+  --sway-y: 0;
+  --plate: rgba(10, 12, 18, 0.78);
+  --shade: 0 0.1em 0 rgba(10, 12, 18, 0.8), 0 0 0.5em rgba(10, 12, 18, 0.55);
 }
 
 #viewmodel {
@@ -73,26 +57,6 @@ body.game {
   animation: fade-out 0.5s ease-out;
 }
 
-#damage {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 0;
-  height: 0;
-}
-
-/* A wedge 150px from the centre; rotating it points at the attacker. */
-.wedge {
-  position: absolute;
-  left: -40px;
-  top: -170px;
-  width: 80px;
-  height: 20px;
-  transform-origin: 40px 170px;
-  background: radial-gradient(ellipse at 50% 100%, rgba(255, 60, 40, 0.95), transparent 70%);
-  animation: fade-out 1s ease-in forwards;
-}
-
 @keyframes fade-out {
   from {
     opacity: 1;
@@ -102,408 +66,1117 @@ body.game {
   }
 }
 
-#health,
-#ammo {
-  position: absolute;
-  bottom: 16px;
-  font-size: 40px;
-  font-weight: bold;
-  color: #e6c35c;
-  text-shadow: 3px 3px 0 #000;
-}
-
-#health {
-  left: 24px;
-}
-
-#health::before {
-  content: '✚ ';
-  font-size: 28px;
-}
-
-#ammo {
-  right: 24px;
-}
-
-#health.low,
-#ammo.low {
-  color: #ff4d3d;
-}
-
-#killfeed {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  text-align: right;
-  font-size: 14px;
-  font-weight: bold;
-  text-shadow: 1px 1px 0 #000;
-}
-
-#killfeed li {
-  margin-bottom: 4px;
-  padding: 2px 6px;
-  background: rgba(0, 0, 0, 0.45);
-}
-
-#death {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  gap: 8px;
-  text-align: center;
-  background: rgba(90, 0, 0, 0.45);
-  text-shadow: 2px 2px 0 #000;
-}
-
-#death[hidden] {
-  display: none;
-}
-
-#death p {
-  margin: 0;
-}
-
-#death-title {
-  font-size: 32px;
-  font-weight: bold;
-}
-
-#debug {
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  font-size: 12px;
-  color: #cfc;
-  text-shadow: 1px 1px 0 #000;
-  white-space: pre;
-}
-
-#overlay {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  box-sizing: border-box;
-  /* The menu can be taller than a small window. */
-  overflow-y: auto;
-  background: rgba(8, 6, 14, 0.72);
-}
-
-#overlay[hidden],
-#hud[hidden] {
-  display: none;
-}
-
-.panel {
-  display: grid;
-  gap: 12px;
-  justify-items: center;
-  max-width: 440px;
-  text-align: center;
-}
-
-.panel h1,
-.panel p {
-  margin: 0;
-}
-
-.panel p:empty {
-  display: none;
-}
-
-#play {
-  font: inherit;
-  font-size: 18px;
-  padding: 10px 32px;
-  color: #111;
-  background: #e6c35c;
-  border: 0;
-  cursor: pointer;
-}
-
-#play:hover {
-  background: #f4d77c;
-}
-
-#copy-link {
-  font: inherit;
-  font-size: 14px;
-  padding: 6px 14px;
-  color: #e6c35c;
-  background: none;
-  border: 2px solid #e6c35c;
-  cursor: pointer;
-}
-
-#copy-link:hover {
-  color: #111;
-  background: #e6c35c;
-}
-
-#play[hidden],
-#copy-link[hidden] {
-  display: none;
-}
-
-#room-info {
-  font-size: 14px;
-  color: #b8b2c4;
-}
-
-#player {
-  font-weight: bold;
-}
-
-#controls {
-  display: grid;
-  /* Two key-action pairs per row. */
-  grid-template-columns: auto auto auto auto;
-  gap: 4px 14px;
-  margin: 0;
-  text-align: left;
-  font-size: 14px;
-}
-
-#controls[hidden],
-#sensitivity-row[hidden],
-#volume-row[hidden],
-#host-settings[hidden],
-#scoreboard[hidden] {
-  display: none;
-}
-
-#controls dt {
-  color: #e6c35c;
-}
-
-#controls dd {
-  margin: 0;
-}
-
-#sensitivity-row,
-#volume-row {
-  display: grid;
-  gap: 6px;
-  justify-items: center;
-  font-size: 14px;
-}
-
-#match {
-  position: absolute;
-  left: 50%;
-  top: 10px;
-  transform: translateX(-50%);
-  padding: 2px 10px;
-  font-size: 18px;
-  font-weight: bold;
-  white-space: nowrap;
-  background: rgba(0, 0, 0, 0.45);
-  text-shadow: 1px 1px 0 #000;
-}
-
-#scoreboard {
+/* Crosshair: a dot, four lines and four ticks that confirm a hit. */
+#crosshair {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
-  min-width: min(560px, 90vw);
-  padding: 16px;
-  background: rgba(8, 6, 14, 0.85);
-  border: 2px solid #3a3346;
+  width: 4em;
+  height: 4em;
+  margin: -2em 0 0 -2em;
 }
 
-.scoreboard-title {
-  margin: 0 0 12px;
-  text-align: center;
-  font-size: 18px;
-  font-weight: bold;
+#crosshair i {
+  position: absolute;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(10, 12, 18, 0.55);
 }
 
-#scoreboard table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 15px;
+#crosshair .dot {
+  left: calc(50% - 2px);
+  top: calc(50% - 2px);
+  width: 4px;
+  height: 4px;
 }
 
-#scoreboard th {
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: normal;
-  text-transform: uppercase;
-  color: #9a93a8;
+#crosshair .line.up,
+#crosshair .line.down {
+  left: calc(50% - 1px);
+  width: 2px;
+  height: 0.875em;
 }
 
-#scoreboard td {
-  padding: 4px 10px;
-  text-align: right;
+#crosshair .line.left,
+#crosshair .line.right {
+  top: calc(50% - 1px);
+  width: 0.875em;
+  height: 2px;
 }
 
-#scoreboard th:first-child,
-#scoreboard td:first-child {
-  text-align: left;
-  font-weight: bold;
+#crosshair .up {
+  top: 0.5em;
 }
 
-#scoreboard tr.me {
-  background: rgba(230, 195, 92, 0.18);
+#crosshair .down {
+  bottom: 0.5em;
 }
 
-#scoreboard tr.offline {
-  opacity: 0.45;
+#crosshair .left {
+  left: 0.5em;
 }
 
-#host-settings {
-  display: grid;
-  gap: 8px;
-  justify-items: center;
-  padding: 12px;
-  border: 2px solid #3a3346;
-  font-size: 14px;
+#crosshair .right {
+  right: 0.5em;
 }
 
-#host-settings p {
-  margin: 0;
+#crosshair .tick {
+  width: 0.7em;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: none;
+  opacity: 0;
 }
 
-#host-note {
-  font-size: 12px;
-  color: #b8b2c4;
+#crosshair .tick.a {
+  left: 0.85em;
+  top: 1em;
+  transform: rotate(45deg);
 }
 
-.host-fields {
-  display: flex;
-  gap: 12px;
+#crosshair .tick.b {
+  right: 0.85em;
+  top: 1em;
+  transform: rotate(-45deg);
 }
 
-.host-fields label {
-  display: grid;
-  gap: 4px;
-  font-size: 12px;
-  color: #b8b2c4;
+#crosshair .tick.c {
+  left: 0.85em;
+  bottom: 1em;
+  transform: rotate(-45deg);
 }
 
-.host-fields input {
-  width: 110px;
+#crosshair .tick.d {
+  right: 0.85em;
+  bottom: 1em;
+  transform: rotate(45deg);
+}
+
+#crosshair.hit .tick {
+  opacity: 1;
+}
+
+#crosshair.strong .tick {
+  height: 3px;
+  background: var(--gold);
+}
+
+/* Damage direction: an arc around the crosshair, turned towards the attacker. */
+#damage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+}
+
+.arc {
+  position: absolute;
+  left: -8em;
+  top: -8em;
+  width: 16em;
+  height: 16em;
   box-sizing: border-box;
-  padding: 6px 8px;
-  font: inherit;
-  color: #e6e6e6;
-  background: #0d0b12;
-  border: 2px solid #3a3346;
+  border: 0.4em solid transparent;
+  border-top-color: var(--danger);
+  border-radius: 50%;
+  animation: fade-out 1s ease-in forwards;
 }
 
-#host-apply {
-  font: inherit;
-  padding: 6px 14px;
-  color: #111;
-  background: #e6c35c;
-  border: 0;
-  cursor: pointer;
+/* Things anchored to points of the world; scripts move them every frame. */
+#tags,
+#floaters {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 
-#host-settings :disabled {
-  opacity: 0.5;
-  cursor: default;
+.tag,
+.floater {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.tag span {
+  position: absolute;
+  left: 0;
+  bottom: 0.9em;
+  transform: translateX(-50%);
+  padding: 0.12em 0.5em;
+  font-size: 0.94em;
+  font-weight: 700;
+  white-space: nowrap;
+  text-transform: none;
+  color: color-mix(in srgb, var(--c) 55%, white);
+  background: var(--plate);
+}
+
+.tag i {
+  position: absolute;
+  left: -0.31em;
+  top: -0.62em;
+  width: 0.62em;
+  height: 0.62em;
+  background: var(--c);
+  box-shadow: 0 0 0 1px rgba(10, 12, 18, 0.6);
+  transform: rotate(45deg);
+}
+
+.floater span {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 1.6em;
+  font-weight: 800;
+  color: var(--ink);
+  text-shadow: 2px 2px 0 var(--bg-deep);
+  animation: rise 0.8s ease-out forwards;
+}
+
+.floater span.head {
+  font-size: 2em;
+  color: var(--gold);
+}
+
+@keyframes rise {
+  from {
+    translate: 0 0;
+    opacity: 1;
+  }
+  65% {
+    opacity: 1;
+  }
+  to {
+    translate: 0 -2.6em;
+    opacity: 0;
+  }
+}
+
+/* Top of the screen: compass, score and clock. */
+#top {
+  position: absolute;
+  left: 50%;
+  top: 0.875em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375em;
+  transform: translate(calc(-50% + var(--sway-x) * 0.5px), calc(var(--sway-y) * 0.5px));
+}
+
+#compass {
+  position: relative;
+  width: 26em;
+  height: 1.9em;
+  overflow: hidden;
+  background: rgba(10, 12, 18, 0.55);
+  mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
+}
+
+#compass-strip {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 100%;
+  /* Marks are placed in em, so their size must be set here and not on the marks. */
+  font-size: 0.94em;
+  will-change: transform;
+}
+
+#compass-strip span {
+  position: absolute;
+  bottom: 0.35em;
+  transform: translateX(-50%);
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+
+#compass-strip span.point {
+  font-weight: 800;
+  color: #fff;
+}
+
+#compass-heading {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 100%;
+  min-width: 2.4em;
+  padding: 0 0.3em;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  transform: translateX(-50%);
+  font-size: 1.625em;
+  font-weight: 800;
+  color: #fff;
+  background: var(--bg-deep);
+}
+
+#compass-needle {
+  width: 2px;
+  height: 0.5em;
+  background: var(--accent);
+}
+
+#match {
+  display: flex;
+  align-items: stretch;
+  transform: skewX(var(--skew));
+}
+
+#match .side {
+  display: flex;
+  gap: 0.6em;
+  align-items: baseline;
+  padding: 0.125em 1em;
+  color: var(--bg-deep);
+  background: var(--c);
+}
+
+#match .label {
+  max-width: 9em;
+  overflow: hidden;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#match b {
+  font-size: 1.875em;
+  font-weight: 800;
+}
+
+#match-clock {
+  display: grid;
+  place-items: center;
+  min-width: 3em;
+  padding: 0.1em 0.7em;
+  font-size: 1.625em;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(10, 12, 18, 0.85);
+}
+
+#network,
+#hint {
+  padding: 0.3em 1.1em;
+  font-size: 1.125em;
+  font-weight: 800;
+  white-space: nowrap;
+  transform: skewX(var(--skew));
 }
 
 #network {
-  position: absolute;
-  left: 50%;
-  top: 48px;
-  transform: translateX(-50%);
-  padding: 6px 14px;
-  font-weight: bold;
-  white-space: nowrap;
-  color: #111;
-  background: #e6c35c;
-}
-
-#network[hidden] {
-  display: none;
-}
-
-#team-picker {
-  display: grid;
-  gap: 8px;
-  justify-items: center;
-  font-size: 14px;
-}
-
-#team-picker[hidden] {
-  display: none;
-}
-
-#team-picker p {
-  margin: 0;
-}
-
-#team-note {
-  font-size: 12px;
-  color: #b8b2c4;
-}
-
-.team-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.team-buttons button {
-  min-width: 130px;
-  padding: 6px 12px;
-  font: inherit;
-  font-weight: bold;
-  color: var(--team);
-  background: none;
-  border: 2px solid var(--team);
-  cursor: pointer;
-}
-
-.team-buttons button[aria-pressed='true'] {
-  color: #111;
-  background: var(--team);
-  cursor: default;
-}
-
-.team-buttons button:disabled:not([aria-pressed='true']) {
-  opacity: 0.4;
-  cursor: default;
-}
-
-#scoreboard tr.team td {
-  padding-top: 10px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  border-bottom: 1px solid currentColor;
-}
-
-.host-fields select {
-  box-sizing: border-box;
-  padding: 6px 8px;
-  font: inherit;
-  color: #e6e6e6;
-  background: #0d0b12;
-  border: 2px solid #3a3346;
+  margin-top: 0.4em;
+  color: var(--bg-deep);
+  background: var(--gold);
 }
 
 #hint {
   position: absolute;
   left: 50%;
   top: 62%;
-  transform: translateX(-50%);
-  padding: 8px 16px;
-  font-weight: bold;
-  white-space: nowrap;
-  background: rgba(0, 0, 0, 0.6);
-  text-shadow: 1px 1px 0 #000;
+  transform: translateX(-50%) skewX(var(--skew));
+  background: var(--plate);
+  border-left: 0.25em solid var(--accent);
 }
 
-#hint[hidden] {
+#debug {
+  position: absolute;
+  left: 1.4em;
+  top: 1.4em;
+  padding: 0.15em 0.9em;
+  font-size: 0.875em;
+  font-weight: 600;
+  white-space: nowrap;
+  text-transform: none;
+  color: var(--ink-dim);
+  background: rgba(10, 12, 18, 0.6);
+  transform: skewX(var(--skew));
+}
+
+#killfeed {
+  position: absolute;
+  right: 1.4em;
+  top: 1.4em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  align-items: flex-end;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#killfeed li {
+  display: flex;
+  gap: 0.55em;
+  align-items: center;
+  padding: 0.2em 0.8em;
+  font-size: 1.125em;
+  font-weight: 700;
+  background: var(--plate);
+  transform: skewX(var(--skew));
+  animation: feed-in 0.18s ease-out;
+}
+
+#killfeed li.mine {
+  border-right: 0.25em solid var(--accent);
+}
+
+#killfeed li.notice {
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--ink-dim);
+  background: rgba(10, 12, 18, 0.5);
+}
+
+#killfeed .glyph {
+  width: 2.1em;
+  height: 0.75em;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+#killfeed .head {
+  font-size: 0.72em;
+  color: var(--gold);
+}
+
+@keyframes feed-in {
+  from {
+    opacity: 0;
+    translate: 1.5em 0;
+  }
+}
+
+/* Bottom corners: the player and the weapon, tilted into the scene. */
+.card {
+  position: absolute;
+  bottom: 1.6em;
+  text-shadow: var(--shade);
+  transition: opacity 0.2s;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375em;
+}
+
+#player-card {
+  left: 1.75em;
+  width: 22.5em;
+  transform-origin: left center;
+  transform: translate(calc(var(--sway-x) * 1px), calc(var(--sway-y) * 1px)) perspective(56em)
+    rotateY(16deg);
+}
+
+#weapon-card {
+  right: 1.75em;
+  width: 20.6em;
+  transform-origin: right center;
+  transform: translate(calc(var(--sway-x) * 1px), calc(var(--sway-y) * 1px)) perspective(56em)
+    rotateY(-16deg);
+}
+
+#weapon-card .card-body {
+  align-items: flex-end;
+}
+
+.card-title {
+  display: flex;
+  gap: 0.6em;
+  align-items: baseline;
+}
+
+#player-name {
+  max-width: 9em;
+  overflow: hidden;
+  font-size: 1.875em;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-transform: none;
+}
+
+#player-sub {
+  font-weight: 700;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--c, var(--ink-dim)) 60%, white);
+}
+
+.health-row {
+  display: flex;
+  gap: 0.75em;
+  align-items: center;
+}
+
+#health-bar {
+  position: relative;
+  flex-grow: 1;
+  height: 1em;
+  overflow: hidden;
+  background: rgba(10, 12, 18, 0.7);
+  transform: skewX(var(--skew));
+}
+
+#health-fill,
+#health-trail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+}
+
+#health-fill {
+  background: var(--ink);
+  transition: width 0.12s;
+}
+
+/* Lags behind the bar and so shows the health that has just been lost. */
+#health-trail {
+  background: var(--accent);
+  transition: width 0.45s 0.35s ease-in;
+}
+
+#health {
+  min-width: 1.7em;
+  font-size: 1.875em;
+  font-weight: 800;
+  text-align: right;
+}
+
+#player-card.low #health {
+  color: var(--danger);
+}
+
+#player-card.low #health-fill {
+  background: var(--danger);
+  animation: pulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+  to {
+    opacity: 0.45;
+  }
+}
+
+#weapon-name {
+  font-weight: 700;
+  color: var(--ink-dim);
+}
+
+.ammo-row {
+  display: flex;
+  gap: 0.5em;
+  align-items: baseline;
+}
+
+#ammo {
+  font-size: 5.5em;
+  font-weight: 800;
+  line-height: 0.8;
+}
+
+#ammo-max {
+  font-size: 1.875em;
+  font-weight: 700;
+  color: var(--ink-dim);
+}
+
+#ammo-cells {
+  display: flex;
+  gap: 0.19em;
+  width: 100%;
+  height: 0.625em;
+  transform: skewX(var(--skew));
+}
+
+#ammo-cells i {
+  flex: 1;
+  background: rgba(244, 241, 234, 0.25);
+  box-shadow: var(--shade);
+}
+
+#ammo-cells i.full {
+  background: var(--ink);
+}
+
+#weapon-card.low #ammo {
+  color: var(--danger);
+}
+
+#weapon-card.low #ammo-cells i.full {
+  background: var(--danger);
+}
+
+#weapon-card.reloading #ammo {
+  opacity: 0.45;
+}
+
+#weapon-card.reloading #ammo-cells i.full {
+  background: var(--accent);
+}
+
+#reload-hint {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  font-size: 0.94em;
+  font-weight: 700;
+  color: var(--ink-dim);
+}
+
+/* Keeps its place when hidden, so the card does not jump. */
+#reload-hint[hidden] {
+  display: flex !important;
+  visibility: hidden;
+}
+
+#reload-hint kbd {
+  padding: 0 0.45em;
+  font: inherit;
+  color: var(--bg-deep);
+  background: var(--ink);
+  text-shadow: none;
+}
+
+#hud.dead #crosshair,
+#hud.dead .card {
+  opacity: 0;
+}
+
+#death {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: linear-gradient(rgba(70, 10, 6, 0.5), rgba(10, 12, 18, 0.72));
+}
+
+#death p {
+  margin: 0;
+}
+
+#death .eyebrow {
+  font-size: 1.125em;
+}
+
+#death-title {
+  font-size: 3.2em;
+  font-weight: 800;
+}
+
+#death-bar {
+  width: 18em;
+  height: 0.5em;
+  background: rgba(10, 12, 18, 0.7);
+  transform: skewX(var(--skew));
+}
+
+#death-bar div {
+  height: 100%;
+  background: var(--accent);
+}
+
+#death-timer {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: var(--ink-dim);
+}
+
+#scoreboard {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  box-sizing: border-box;
+  width: min(44em, 92vw);
+  padding: 1.3em 1.75em 1.5em;
+  background: rgba(10, 12, 18, 0.92);
+  border-left: 0.4em solid var(--accent);
+  transform: translate(-50%, -50%);
+}
+
+#scoreboard .eyebrow {
+  font-size: 1.05em;
+}
+
+.scoreboard-title {
+  margin: 0.1em 0 0.35em;
+  font-size: 3em;
+  font-weight: 800;
+}
+
+#scoreboard[data-outcome='win'] .scoreboard-title {
+  color: var(--gold);
+}
+
+#scoreboard[data-outcome='loss'] .scoreboard-title {
+  color: var(--accent-soft);
+}
+
+#scoreboard table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1.25em;
+  font-weight: 700;
+}
+
+#scoreboard th {
+  padding: 0.2em 0.6em;
+  font-size: 0.7em;
+  font-weight: 700;
+  text-align: right;
+  color: var(--ink-faint);
+}
+
+#scoreboard td {
+  padding: 0.28em 0.6em;
+  text-align: right;
+}
+
+#scoreboard th:first-child,
+#scoreboard td:first-child {
+  text-align: left;
+}
+
+#scoreboard tr.me td {
+  background: var(--panel);
+}
+
+#scoreboard tr.offline {
+  opacity: 0.45;
+}
+
+#scoreboard tr.team td {
+  font-weight: 800;
+  color: var(--bg-deep);
+  background: var(--c);
+}
+
+#scoreboard .dot {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-right: 0.45em;
+}
+
+/* ---------- Room menu ---------- */
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  box-sizing: border-box;
+  padding: 34px 48px;
+  /* The menu can be taller than a small window. */
+  overflow: hidden auto;
+  text-transform: uppercase;
+  background: rgba(20, 22, 29, 0.9);
+}
+
+/* The accent slab on the right; it carries the player's card on wide screens. */
+.slab {
   display: none;
+  position: fixed;
+  right: -80px;
+  top: -20vh;
+  width: 420px;
+  height: 140vh;
+  background: var(--accent);
+  opacity: 0.92;
+  transform: skewX(var(--skew));
+  pointer-events: none;
+}
+
+.menu-head {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+#room-title {
+  margin: 0;
+  font-size: clamp(44px, 9vw, 76px);
+  font-weight: 800;
+  line-height: 0.95;
+}
+
+#message {
+  position: relative;
+  align-self: flex-start;
+  margin: 0;
+  padding: 8px 20px;
+  font-size: 20px;
+  font-weight: 700;
+  text-transform: none;
+  background: var(--panel);
+  border-left: 4px solid var(--accent);
+}
+
+#message:empty {
+  display: none;
+}
+
+#menu {
+  position: relative;
+  display: flex;
+  flex-grow: 1;
+  gap: 36px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 10px;
+  width: 300px;
+}
+
+.home-link {
+  position: relative;
+  align-self: flex-start;
+  padding: 14px 26px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+#menu:not([hidden]) ~ #back {
+  display: none;
+}
+
+.actions-note {
+  margin: auto 0 0;
+  font-size: 16px;
+  color: var(--ink-dim);
+}
+
+.panels {
+  flex: 0 1 520px;
+  min-width: 0;
+}
+
+.panels section,
+#team-picker,
+#roster,
+#host-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.panel-head h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.panel-head p {
+  margin: 0;
+  font-size: 16px;
+  color: var(--accent-soft);
+}
+
+.squads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.squad {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  min-height: 176px;
+  padding: 12px 14px;
+  font: inherit;
+  text-align: left;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--team) 50%, white);
+  background: color-mix(in srgb, var(--team) 14%, transparent);
+  border: 2px solid var(--team);
+  cursor: pointer;
+}
+
+.squad:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--team) 28%, transparent);
+}
+
+.squad[aria-pressed='true'] {
+  color: var(--bg-deep);
+  background: var(--team);
+  cursor: default;
+}
+
+.squad:disabled:not([aria-pressed='true']) {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.squad-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.squad-score {
+  font-size: 44px;
+}
+
+.squad-row {
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  text-transform: none;
+}
+
+.squad-row.empty {
+  opacity: 0.6;
+}
+
+.squad-badge {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 2px 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--bg-deep);
+  background: var(--team);
+}
+
+.squad[aria-pressed='true'] .squad-badge {
+  color: color-mix(in srgb, var(--team) 50%, white);
+  background: var(--bg-deep);
+}
+
+#roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#roster-list li {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 8px 14px;
+  font-size: 20px;
+  font-weight: 700;
+  background: var(--panel);
+}
+
+#roster-list li.me {
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+
+#roster-list li.offline {
+  opacity: 0.45;
+}
+
+.sliders {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.sliders label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.sliders label span {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.sliders output {
+  color: var(--accent-soft);
+}
+
+#controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 18px;
+  margin: 0;
+  font-size: 17px;
+}
+
+#controls div {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--panel-strong);
+}
+
+#controls dt {
+  min-width: 74px;
+  font-weight: 800;
+  color: var(--accent-soft);
+}
+
+#controls dd {
+  margin: 0;
+  color: var(--ink-dim);
+}
+
+.host-fields {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 12px;
+}
+
+.host-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: flex-end;
+  font-size: 15px;
+  color: var(--ink-dim);
+}
+
+#host-apply {
+  align-self: flex-start;
+  margin-left: 6px;
+}
+
+/* The player's own card. On wide screens it sits on the accent slab. */
+#me {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 8px;
+  align-self: flex-end;
+  width: 250px;
+  margin-left: auto;
+  padding: 16px 18px;
+  box-sizing: border-box;
+  color: var(--bg);
+  background: var(--accent);
+}
+
+#me .eyebrow {
+  color: inherit;
+}
+
+#player {
+  margin: 0;
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 0.95;
+  overflow-wrap: anywhere;
+  text-transform: none;
+}
+
+#me-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+#me-stats div {
+  display: flex;
+  flex-direction: column;
+}
+
+#me-stats dd {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+#me-stats dt {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+@media (min-width: 1180px) {
+  #overlay:has(#menu:not([hidden])) .slab {
+    display: block;
+  }
+
+  #overlay:has(#menu:not([hidden])) .tabs {
+    margin-right: 340px;
+  }
+
+  #me {
+    padding: 0 0 6px;
+    background: none;
+  }
+}
+
+@media (max-width: 1179px) {
+  #menu {
+    flex-wrap: wrap;
+  }
+
+  .panels {
+    flex: 1 1 420px;
+  }
+
+  #me {
+    align-self: flex-start;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  #overlay {
+    padding: 20px 16px;
+  }
+
+  .actions,
+  #me {
+    width: 100%;
+  }
+
+  .squads,
+  .sliders,
+  .host-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #killfeed li,
+  #player-card.low #health-fill {
+    animation: none;
+  }
 }

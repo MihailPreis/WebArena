@@ -4,18 +4,12 @@ import arenaJson from '@shared/maps/arena.json';
 import constants from '@shared/constants.json';
 import { ApiError, getRoom, isRoomFull, type RoomInfo } from '../shared/api';
 import { roomCodeFromPath } from '../shared/roomCode';
-import {
-  describeSettings,
-  modeName,
-  TEAM_COLORS,
-  TEAM_NAMES,
-  TEAMS,
-  type Team,
-} from '../shared/roomText';
+import { describeSettings, modeName, TEAM_COLORS, TEAM_NAMES, type Team } from '../shared/roomText';
 import { ensureSession, type Session } from '../shared/session';
 import { GameAudio } from './audio';
-import { Hud, type NamedPlayer } from './hud';
+import { Hud, type MatchSide, type NamedPlayer, type TeammateTag } from './hud';
 import { Input } from './input';
+import { Menu } from './menu';
 import { Connection } from './net/connection';
 import { RemoteInterpolator } from './net/interpolation';
 import { Prediction } from './net/prediction';
@@ -33,7 +27,7 @@ import {
 } from './net/protocol';
 import { createRenderer } from './render/renderer';
 import { createViewmodel } from './render/viewmodel';
-import { formatClock, Scoreboard, teamScoreLine } from './scoreboard';
+import { formatClock, Scoreboard } from './scoreboard';
 import {
   loadSensitivity,
   loadVolume,
@@ -58,6 +52,16 @@ function element<T extends HTMLElement>(id: string): T {
 
 const title = element('room-title');
 const message = element('message');
+const roomInfo = element('room-info');
+
+// The line above the menu title. Once the title turns into "Пауза", the room moves here.
+let roomLabel = '';
+let roomSettings: RoomInfo['settings'] | null = null;
+let paused = false;
+function showRoomInfo(): void {
+  const rules = roomSettings ? describeSettings(roomSettings) : '';
+  roomInfo.textContent = paused ? `${roomLabel} · ${rules}` : rules;
+}
 
 const CLOSE_MESSAGES: Record<number, string> = {
   [CloseCode.ROOM_FULL]: 'Комната заполнена.',
@@ -90,7 +94,8 @@ async function enter(): Promise<void> {
     message.textContent = 'Проверьте ссылку: код комнаты — 4 латинские буквы или цифры.';
     return;
   }
-  title.textContent = `Комната ${code}`;
+  roomLabel = `Комната ${code}`;
+  title.textContent = roomLabel;
   // A constant, so that callbacks below know the code is not null.
   const roomCode = code;
 
@@ -116,10 +121,9 @@ async function enter(): Promise<void> {
   }
 
   message.textContent = 'Подключение…';
-  element('room-info').textContent = describeSettings(room.settings);
-  const player = element('player');
-  player.textContent = session.profile.name;
-  player.style.color = session.profile.color;
+  roomSettings = room.settings;
+  showRoomInfo();
+  element('player').textContent = session.profile.name;
 
   const roster = new Map<string, PublicPlayer>();
   let game: ReturnType<typeof createGame> | null = null;
@@ -157,7 +161,8 @@ async function enter(): Promise<void> {
         else game?.handleEvent(event);
       },
       onRoomState(state) {
-        element('room-info').textContent = describeSettings(state.settings);
+        roomSettings = state.settings;
+        showRoomInfo();
         // The table also lists players who joined before this client did.
         for (const row of state.players) {
           if (row.online && row.id !== session.profile.id) roster.set(row.id, row);
@@ -213,6 +218,8 @@ interface GameOptions {
 const STEP_DISTANCE = 2.2;
 // How far in front of the camera the gun's muzzle is imagined to be.
 const MUZZLE_DISTANCE = 0.5;
+// How far above a teammate's head their label floats, in metres.
+const TAG_GAP = 0.45;
 // After Esc releases the mouse, ignore Esc for a moment: that same key press must not
 // close the menu it has just opened.
 const ESCAPE_GUARD_MS = 250;
@@ -245,10 +252,13 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
   });
 
   const volume = element<HTMLInputElement>('volume');
+  const volumeValue = element('volume-value');
   volume.value = String(loadVolume());
   audio.setVolume(Number(volume.value));
+  volumeValue.textContent = `${Math.round(Number(volume.value) * 100)} %`;
   volume.addEventListener('input', () => {
     audio.setVolume(Number(volume.value));
+    volumeValue.textContent = `${Math.round(Number(volume.value) * 100)} %`;
     saveVolume(Number(volume.value));
   });
 
@@ -273,19 +283,9 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     );
   });
 
-  // Side selection, shown in team modes.
-  const teamPicker = element('team-picker');
-  const teamNote = element('team-note');
-  const teamButtons = new Map<Team, HTMLButtonElement>();
-  for (const button of teamPicker.querySelectorAll<HTMLButtonElement>('button')) {
-    const team = button.dataset.team as Team;
-    teamButtons.set(team, button);
-    button.style.setProperty('--team', TEAM_COLORS[team]);
-    button.addEventListener('click', () => connection.sendTeam(team));
-  }
+  const menu = new Menu(welcome.id, (team) => connection.sendTeam(team));
 
   const scoreboard = new Scoreboard(element('scoreboard'), welcome.id);
-  const matchLine = element('match');
   let roomState: RoomStateMsg | null = null;
   let roomStateAt = 0;
 
@@ -311,6 +311,9 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
         started = true;
         // From now on the menu is a pause menu.
         play.textContent = 'Продолжить';
+        title.textContent = 'Пауза';
+        paused = true;
+        showRoomInfo();
       } else {
         unlockedAt = performance.now();
       }
@@ -341,9 +344,6 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     refreshMenu();
     if (dismissed) lock();
   });
-  for (const id of ['play', 'controls', 'sensitivity-row', 'volume-row']) {
-    element(id).hidden = false;
-  }
 
   const myId = welcome.id;
   let myTeam: Team | null = null;
@@ -371,6 +371,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     pos: Vec3;
     yaw: number;
     crouched: boolean;
+    nameTag: boolean;
   })[] = [];
   // Who killed the player, or a plain explanation when nobody did.
   let deathCause: NamedPlayer | string = '';
@@ -392,6 +393,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     const barrel = viewmodel.muzzle();
     renderer.addTracer(renderer.screenToWorld(barrel.x, barrel.y, MUZZLE_DISTANCE), end);
     viewmodel.fire();
+    hud.fired();
     audio.shot(null);
   }
 
@@ -430,15 +432,52 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     }
   }
 
+  /** The line at the top of the screen: the clock between two scores. */
+  function showMatch(state: RoomStateMsg, timeLeft: number | null): void {
+    const mine = state.players.find((row) => row.id === myId);
+    let left: MatchSide | null = null;
+    let right: MatchSide | null = null;
+    if (state.teams) {
+      const side = (team: Team): MatchSide => ({
+        label: TEAM_NAMES[team],
+        score: String(state.teams?.[team] ?? 0),
+        color: TEAM_COLORS[team],
+      });
+      left = side('blue');
+      right = side('red');
+    } else if (state.state !== 'waiting') {
+      // The table is ordered by place, so the first other player is the best rival.
+      const rival = state.players.find((row) => row.id !== myId);
+      left = { label: 'Вы', score: String(mine?.kills ?? 0), color: 'var(--accent)' };
+      if (rival) {
+        right = { label: rival.name, score: String(rival.kills), color: 'var(--ink-dim)' };
+      }
+    }
+    if (state.state === 'waiting') hud.setMatch('Ожидание игроков', left, right);
+    else if (state.state === 'results') hud.setMatch('Матч окончен', left, right);
+    else hud.setMatch(formatClock(timeLeft ?? 0), left, right);
+
+    const score = `${mine?.kills ?? 0} / ${mine?.deaths ?? 0}`;
+    if (myTeam) hud.setPlayer(self.name, `${TEAM_NAMES[myTeam]} · ${score}`, TEAM_COLORS[myTeam]);
+    else hud.setPlayer(self.name, score, 'var(--ink-dim)');
+  }
+
   let lastTime = performance.now();
   let fps = 0;
+  let lastYaw = input.yaw;
+  let lastPitch = input.pitch;
   function frame(now: number): void {
     // A background tab can pause for seconds; do not replay that time.
     const dt = Math.min((now - lastTime) / 1000, 0.25);
     lastTime = now;
     const seconds = now / 1000;
 
-    others = remotes.sample(seconds).map((remote) => ({ ...remote, ...appearance(remote.id) }));
+    others = remotes.sample(seconds).map((remote) => ({
+      ...remote,
+      ...appearance(remote.id),
+      // Teammates get a label on the HUD instead, visible through walls.
+      nameTag: myTeam === null || roster.get(remote.id)?.team !== myTeam,
+    }));
     const renderTime = remotes.renderTime(seconds);
 
     const steps = running ? loop.advance(dt) : 0;
@@ -470,36 +509,52 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     viewmodel.update(dt, stride, reloading || dead);
 
     hud.setHealth(status.hp);
-    hud.setAmmo(prediction.weapon.ammo, WEAPON.magazine, reloading);
-    hud.setDeath(dead ? deathCause : null, COMBAT.respawnDelayS - (now - diedAt) / 1000);
+    hud.setAmmo(
+      prediction.weapon.ammo,
+      WEAPON.magazine,
+      reloading ? 1 - prediction.weapon.reload / WEAPON.reloadTicks : null,
+    );
+    hud.setDeath(
+      dead ? deathCause : null,
+      COMBAT.respawnDelayS - (now - diedAt) / 1000,
+      COMBAT.respawnDelayS,
+    );
+    hud.setHeading(input.yaw);
+    // The shortest way round, so that crossing ±π is not a full turn.
+    const turned = Math.atan2(Math.sin(input.yaw - lastYaw), Math.cos(input.yaw - lastYaw));
+    hud.sway(turned, input.pitch - lastPitch, dt);
+    lastYaw = input.yaw;
+    lastPitch = input.pitch;
+
+    const mates: TeammateTag[] = [];
+    const feet = prediction.current.pos;
+    for (const other of others) {
+      if (other.nameTag) continue;
+      const [x, y, z] = other.pos;
+      const height = other.crouched ? PLAYER.crouchHeight : PLAYER.standHeight;
+      mates.push({
+        id: other.id,
+        name: other.name,
+        color: other.color,
+        pos: [x, y + height + TAG_GAP, z],
+        distance: Math.hypot(x - feet[0], y - feet[1], z - feet[2]),
+      });
+    }
+    hud.setTags(mates, renderer.worldToScreen);
+    hud.updateWorld(renderer.worldToScreen);
 
     if (roomState) {
       const timeLeft =
         roomState.timeLeft === null ? null : roomState.timeLeft - (now - roomStateAt) / 1000;
-      const results = roomState.state === 'results';
-      scoreboard.visible = results || input.isDown('Tab');
+      scoreboard.visible = roomState.state === 'results' || input.isDown('Tab');
       scoreboard.update(roomState, timeLeft);
-      const mine = roomState.players.find((row) => row.id === myId);
-      if (roomState.state === 'waiting') matchLine.textContent = 'Ожидание игроков';
-      else if (results) matchLine.textContent = 'Матч окончен';
-      else if (roomState.teams) {
-        matchLine.textContent = `${formatClock(timeLeft ?? 0)} · ${teamScoreLine(roomState.teams)}`;
-      } else {
-        matchLine.textContent = `${formatClock(timeLeft ?? 0)} · ${mine?.kills ?? 0} / ${roomState.settings.killLimit}`;
-      }
+      showMatch(roomState, timeLeft);
     }
 
     if (dt > 0) fps += (1 / dt - fps) * 0.05;
     const speed = Math.hypot(prediction.current.vel[0], prediction.current.vel[2]);
     const ping = connection.ping === null ? '—' : connection.ping.toFixed(0);
-    hud.setDebug(
-      [
-        `${fps.toFixed(0)} fps`,
-        `${ping} мс`,
-        `${speed.toFixed(1)} м/с`,
-        `игроков: ${roster.size + 1}`,
-      ].join('\n'),
-    );
+    hud.setDebug(`${ping} мс · ${fps.toFixed(0)} fps · ${speed.toFixed(1)} м/с`);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -517,7 +572,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
 
       const isHost = state.hostId === myId;
       const editable = state.state !== 'match';
-      hostForm.hidden = !isHost;
+      menu.setHost(isHost);
       hostMode.disabled = !editable;
       hostKillLimit.disabled = hostTimeLimit.disabled = hostApply.disabled = !editable;
       hostNote.textContent = editable
@@ -535,24 +590,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
       }
 
       myTeam = state.players.find((row) => row.id === myId)?.team ?? null;
-      teamPicker.hidden = state.teams === null || myTeam === null;
-      if (state.teams && myTeam) {
-        const size = (team: Team) =>
-          state.players.filter((row) => row.online && row.team === team).length;
-        for (const team of TEAMS) {
-          const button = teamButtons.get(team);
-          if (!button) continue;
-          const mine = team === myTeam;
-          button.textContent = `${TEAM_NAMES[team]} · ${size(team)}`;
-          button.setAttribute('aria-pressed', String(mine));
-          // The server refuses a switch that leaves the sides uneven by more than one.
-          button.disabled = mine || size(team) + 1 - (size(myTeam) - 1) > 1;
-        }
-        teamNote.textContent =
-          state.state === 'match'
-            ? 'Смена команды во время матча считается смертью.'
-            : 'До начала матча команду можно менять свободно.';
-      }
+      menu.update(state);
     },
     handleEvent(event: EventMsg): void {
       switch (event.e) {
@@ -564,6 +602,17 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
           if (event.by === myId) {
             hud.hitMarker(event.head);
             audio.hitConfirm(event.head);
+            const target = others.find((other) => other.id === event.target);
+            if (target) {
+              const height = target.crouched ? PLAYER.crouchHeight : PLAYER.standHeight;
+              const [x, y, z] = target.pos;
+              // Over the head for a headshot, at the chest otherwise.
+              hud.damageNumber(
+                [x, y + height * (event.head ? 1.05 : 0.7), z],
+                event.dmg,
+                event.head,
+              );
+            }
           }
           if (event.target === myId) {
             const [x, , z] = prediction.current.pos;
@@ -574,7 +623,12 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
           }
           break;
         case 'kill':
-          hud.addKill(lookup(event.by), lookup(event.target), event.head);
+          hud.addKill(
+            lookup(event.by),
+            lookup(event.target),
+            event.head,
+            event.by === myId || event.target === myId,
+          );
           if (event.target === myId) {
             deathCause = lookup(event.by);
             diedAt = performance.now();
@@ -630,6 +684,9 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
       dismissed = false;
       refreshMenu();
       play.hidden = true;
+      title.textContent = roomLabel;
+      paused = false;
+      showRoomInfo();
       hud.setNetworkStatus('');
       if (document.pointerLockElement) document.exitPointerLock();
     },
