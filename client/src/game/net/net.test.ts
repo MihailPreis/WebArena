@@ -7,7 +7,7 @@ import { RemoteInterpolator } from './interpolation';
 import { Prediction } from './prediction';
 
 const arena = parseMap(arenaJson);
-const FRESH = { hp: 100, alive: true, ammo: 20, cooldown: 0, reload: 0 };
+const FRESH = { hp: 100, alive: true, frozen: false, ammo: 20, cooldown: 0, reload: 0 };
 const spawn = { position: [0, 0, 16] as [number, number, number], yaw: 0 };
 
 function cmd(overrides: Partial<InputCmd> = {}): InputCmd {
@@ -114,6 +114,13 @@ describe('Prediction of the weapon and of death', () => {
     const frozen = prediction.current;
     expect(prediction.step(cmd({ forward: 1, fire: true })).fired).toBe(false);
     expect(prediction.current).toBe(frozen);
+  });
+
+  it('does not move while the results are shown', () => {
+    const prediction = new Prediction(arena, createPlayer(spawn), { ...FRESH, frozen: true });
+    const before = prediction.current;
+    prediction.step(cmd({ forward: 1 }));
+    expect(prediction.current).toBe(before);
   });
 });
 

@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import logging
 import math
 import random
@@ -9,7 +10,8 @@ from typing import Any, Protocol
 
 from arena.db.players import Player
 from arena.game.combat import Target, aim_direction, eye_position, trace_shot
-from arena.game.map import GameMap, Spawn, Vec3
+from arena.game.map import GameMap, Vec3
+from arena.game.modes import MODES
 from arena.game.movement import TICK_DT, InputCmd, PlayerState, create_player, step_player
 from arena.game.weapon import WeaponState, step_weapon
 from arena.net.protocol import PROTOCOL_VERSION, CloseCode, encode, state_json
@@ -36,6 +38,15 @@ RESPAWN_DELAY_S: float = _COMBAT["respawnDelayS"]
 SPAWN_PROTECTION_S: float = _COMBAT["spawnProtectionS"]
 DAMAGE: int = _WEAPON["damage"]
 HEAD_MULTIPLIER: float = _WEAPON["headMultiplier"]
+
+MIN_PLAYERS: int = CONSTANTS["match"]["minPlayers"]
+RESULTS_S: float = CONSTANTS["match"]["resultsS"]
+ROOM_STATE_INTERVAL_TICKS: int = round(_NET["roomStateIntervalS"] * _NET["snapshotRate"])
+
+# Room states. Scores only count during a match.
+WAITING = "waiting"  # Fewer players than a match needs; everyone can roam and shoot.
+MATCH = "match"
+RESULTS = "results"  # The match is over: players are frozen and the final table is shown.
 
 
 class RoomFull(Exception):
@@ -75,6 +86,10 @@ class Member:
     conn: Outbox | None = None
     kills: int = 0
     deaths: int = 0
+    joined: int = 0
+    """Order of arrival; the longest-present player inherits the host role."""
+    ping: int = 0
+    """Round-trip time in milliseconds, as measured and reported by the client."""
     hp: int = MAX_HEALTH
     alive: bool = True
     weapon: WeaponState = field(default_factory=WeaponState)
@@ -104,8 +119,12 @@ class Room:
         self.host_id = host_id
         self.settings = settings
         self.map = game_map
+        self.mode = MODES[settings.mode]
         self.members: dict[str, Member] = {}
         self.tick_no = 0
+        self.state = WAITING
+        self.state_ends_at: float | None = None
+        self._arrivals = 0
         # Set while nobody is connected; the registry drops the room once this is old enough.
         self.empty_since: float | None = clock()
         self._clock = clock
@@ -131,6 +150,13 @@ class Room:
         if member is None:
             member = Member(player=player, state=create_player(self.map.spawns[0]))
             self.members[player.id] = member
+        if not rejoining:
+            self._arrivals += 1
+            member.joined = self._arrivals
+            host = self.members.get(self.host_id)
+            # A host who has been here and left is replaced by whoever comes next.
+            if host is not None and host.conn is None and not self.connected:
+                self.host_id = player.id
         member.player = player
         member.conn = conn
         member.inputs.clear()
@@ -150,13 +176,14 @@ class Room:
                     "tick": self.tick_no,
                     "map": self.map.name,
                     "you": state_json(member.state),
-                    "status": _status(member),
+                    "status": self._status(member),
                     "players": [_public(m.player) for m in others],
                 }
             )
         )
         if not rejoining:
             self._broadcast({"t": "event", "e": "join", "player": _public(player)}, skip=member)
+        self._send_room_state()
         return member
 
     def leave(self, member: Member, conn: Outbox) -> None:
@@ -166,8 +193,21 @@ class Room:
         member.inputs.clear()
         member.history.clear()
         self._broadcast({"t": "event", "e": "leave", "id": member.player.id})
-        if not self.connected:
+        connected = self.connected
+        if connected and member.player.id == self.host_id:
+            self.host_id = min(connected, key=lambda m: m.joined).player.id
+        if not connected:
             self.empty_since = self._clock()
+        self._send_room_state()
+
+    def change_settings(self, member: Member, kill_limit: int, time_limit_min: int) -> None:
+        """Lets the host change the rules, but only between matches."""
+        if member.player.id != self.host_id or self.state == MATCH:
+            return
+        self.settings = dataclasses.replace(
+            self.settings, kill_limit=kill_limit, time_limit_min=time_limit_min
+        )
+        self._send_room_state()
 
     def receive_input(self, member: Member, seq: int, cmd: InputCmd, render_time: float) -> None:
         if seq <= member.last_seq or len(member.inputs) >= MAX_QUEUED_INPUTS:
@@ -180,18 +220,12 @@ class Room:
         self.tick_no += 1
         now = self.time
         connected = self.connected
+        self._update_match(now)
+        frozen = self.state == RESULTS
 
         for member in connected:
-            if not member.alive and now >= member.respawn_at:
-                self._spawn(member)
-                self._broadcast(
-                    {
-                        "t": "event",
-                        "e": "spawn",
-                        "id": member.player.id,
-                        "yaw": member.state.yaw,
-                    }
-                )
+            if not member.alive and now >= member.respawn_at and not frozen:
+                self._respawn(member)
 
         for member in connected:
             # A client cannot act faster by sending inputs faster than real time.
@@ -200,8 +234,8 @@ class Room:
                 queued = member.inputs.popleft()
                 member.credit -= 1
                 member.ack = queued.seq
-                if not member.alive:
-                    continue  # Inputs of the dead are acknowledged but have no effect.
+                if not member.alive or frozen:
+                    continue  # Acknowledged, but the dead and the frozen cannot act.
                 cmd = queued.cmd
                 member.state = step_player(member.state, cmd, self.map, TICK_DT)
                 if member.state.pos[1] < self.map.kill_y:
@@ -236,11 +270,13 @@ class Room:
                         "tick": self.tick_no,
                         "ack": member.ack,
                         "you": state_json(member.state),
-                        "status": _status(member),
+                        "status": self._status(member),
                         "players": [v for pid, v in views.items() if pid != member.player.id],
                     }
                 )
             )
+        if self.tick_no % ROOM_STATE_INTERVAL_TICKS == 0:
+            self._send_room_state()  # Keeps pings and the match clock fresh on clients.
 
     def ensure_running(self) -> None:
         if self._task is None or self._task.done():
@@ -314,10 +350,10 @@ class Room:
                 involved.conn.send(hit)
         if target.hp == 0:
             target.alive = False
-            target.deaths += 1
             target.respawn_at = now + RESPAWN_DELAY_S
             target.history.clear()
-            shooter.kills += 1
+            if self.state == MATCH:
+                self.mode.record_kill(shooter, target)
             self._broadcast(
                 {
                     "t": "event",
@@ -328,23 +364,95 @@ class Room:
                 }
             )
 
+    def _update_match(self, now: float) -> None:
+        if self.state == WAITING:
+            if len(self.connected) >= MIN_PLAYERS:
+                self._start_match(now)
+        elif self.state == MATCH:
+            timed_out = self.state_ends_at is not None and now >= self.state_ends_at
+            if timed_out or self.mode.is_won(list(self.members.values()), self.settings):
+                self.state = RESULTS
+                self.state_ends_at = now + RESULTS_S
+                self._send_room_state()
+        elif self.state_ends_at is not None and now >= self.state_ends_at:
+            if len(self.connected) >= MIN_PLAYERS:
+                self._start_match(now)
+            else:
+                self._reset_scores()
+                self.state = WAITING
+                self.state_ends_at = None
+                for member in self.connected:
+                    self._respawn(member)
+                self._send_room_state()
+
+    def _start_match(self, now: float) -> None:
+        self._reset_scores()
+        self.state = MATCH
+        self.state_ends_at = now + self.settings.time_limit_min * 60
+        for member in self.connected:
+            self._respawn(member)
+        self._send_room_state()
+
+    def _reset_scores(self) -> None:
+        # Players who left stay in the table only until the match they played in is over.
+        self.members = {pid: m for pid, m in self.members.items() if m.conn is not None}
+        for member in self.members.values():
+            member.kills = 0
+            member.deaths = 0
+
+    def _respawn(self, member: Member) -> None:
+        self._spawn(member)
+        self._broadcast(
+            {"t": "event", "e": "spawn", "id": member.player.id, "yaw": member.state.yaw}
+        )
+
     def _spawn(self, member: Member) -> None:
-        member.state = create_player(self._pick_spawn(member))
+        others = [m for m in self.connected if m is not member and m.alive]
+        member.state = create_player(self.mode.pick_spawn(self.map, member, others))
         member.hp = MAX_HEALTH
         member.alive = True
         member.weapon = WeaponState()
         member.protected_until = self.time + SPAWN_PROTECTION_S
         member.history.clear()
 
-    def _pick_spawn(self, member: Member) -> Spawn:
-        """The spawn point farthest from every living opponent."""
-        enemies = [m.state.pos for m in self.connected if m is not member and m.alive]
-        if not enemies:
-            return random.choice(self.map.spawns)
-        return max(
-            self.map.spawns,
-            key=lambda spawn: min(math.dist(spawn.position, enemy) for enemy in enemies),
+    def _send_room_state(self) -> None:
+        """Tells everyone the match state, the rules and the score table."""
+        time_left = None if self.state_ends_at is None else max(self.state_ends_at - self.time, 0)
+        self._broadcast(
+            {
+                "t": "room",
+                "state": self.state,
+                "timeLeft": time_left,
+                "hostId": self.host_id,
+                "settings": {
+                    "mode": self.settings.mode,
+                    "killLimit": self.settings.kill_limit,
+                    "timeLimitMin": self.settings.time_limit_min,
+                    "maxPlayers": self.settings.max_players,
+                },
+                "players": [
+                    {
+                        **_public(member.player),
+                        "kills": member.kills,
+                        "deaths": member.deaths,
+                        "ping": member.ping,
+                        "online": member.conn is not None,
+                    }
+                    for member in self.mode.ranking(list(self.members.values()))
+                ],
+            }
         )
+
+    def _status(self, member: Member) -> dict[str, Any]:
+        """The private part of a player's state: only that player receives it."""
+        return {
+            "hp": member.hp,
+            "alive": member.alive,
+            "frozen": self.state == RESULTS,
+            "ammo": member.weapon.ammo,
+            "cooldown": member.weapon.cooldown,
+            "reload": member.weapon.reload,
+        }
 
     def _broadcast(self, message: dict[str, Any], skip: Member | None = None) -> None:
         text = encode(message)
@@ -374,17 +482,6 @@ def _position_at(member: Member, time: float) -> tuple[Vec3, bool]:
             )
             return pos, (c0 if alpha < 0.5 else c1)
     return history[0][1], history[0][2]
-
-
-def _status(member: Member) -> dict[str, Any]:
-    """The private part of a player's state: only that player receives it."""
-    return {
-        "hp": member.hp,
-        "alive": member.alive,
-        "ammo": member.weapon.ammo,
-        "cooldown": member.weapon.cooldown,
-        "reload": member.weapon.reload,
-    }
 
 
 def _public(player: Player) -> dict[str, str]:

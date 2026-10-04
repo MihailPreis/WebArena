@@ -53,8 +53,11 @@ class Duel:
         self.alice_conn, self.bob_conn = FakeConn(), FakeConn()
         self.alice = self.room.join(ALICE, self.alice_conn)
         self.bob = self.room.join(BOB, self.bob_conn)
+        self.room.tick()  # Two players are present: the match starts and respawns them.
         self.alice.state = standing((0.0, 0.0, 0.0))
         self.bob.state = standing((0.0, 0.0, -5.0))
+        for member in (self.alice, self.bob):
+            member.history.clear()
         self.seq = 0
         self.wait(SPAWN_PROTECTION_S + 0.1)
 
@@ -210,7 +213,7 @@ def test_kill_death_and_respawn() -> None:
     assert duel.bob.alive is True
     assert duel.bob.hp == MAX_HEALTH
     assert duel.bob.weapon == WeaponState()
-    (spawn,) = duel.events(duel.bob_conn, "spawn")
+    spawn = duel.events(duel.bob_conn, "spawn")[-1]
     assert spawn["id"] == "b2"
     # Alice stands at the origin; the farthest spawn point is the far corner.
     assert duel.bob.state.pos == (40.0, 0.0, 40.0)

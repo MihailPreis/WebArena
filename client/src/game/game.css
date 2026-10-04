@@ -189,6 +189,9 @@ body.game {
   display: grid;
   place-items: center;
   padding: 16px;
+  box-sizing: border-box;
+  /* The menu can be taller than a small window. */
+  overflow-y: auto;
   background: rgba(8, 6, 14, 0.72);
 }
 
@@ -199,9 +202,9 @@ body.game {
 
 .panel {
   display: grid;
-  gap: 16px;
+  gap: 12px;
   justify-items: center;
-  max-width: 360px;
+  max-width: 440px;
   text-align: center;
 }
 
@@ -259,15 +262,19 @@ body.game {
 
 #controls {
   display: grid;
-  grid-template-columns: auto auto;
-  gap: 4px 16px;
+  /* Two key-action pairs per row. */
+  grid-template-columns: auto auto auto auto;
+  gap: 4px 14px;
   margin: 0;
   text-align: left;
   font-size: 14px;
 }
 
 #controls[hidden],
-#sensitivity-row[hidden] {
+#sensitivity-row[hidden],
+#volume-row[hidden],
+#host-settings[hidden],
+#scoreboard[hidden] {
   display: none;
 }
 
@@ -279,9 +286,128 @@ body.game {
   margin: 0;
 }
 
-#sensitivity-row {
+#sensitivity-row,
+#volume-row {
   display: grid;
   gap: 6px;
   justify-items: center;
   font-size: 14px;
+}
+
+#match {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  padding: 2px 10px;
+  font-size: 18px;
+  font-weight: bold;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.45);
+  text-shadow: 1px 1px 0 #000;
+}
+
+#scoreboard {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  min-width: min(560px, 90vw);
+  padding: 16px;
+  background: rgba(8, 6, 14, 0.85);
+  border: 2px solid #3a3346;
+}
+
+.scoreboard-title {
+  margin: 0 0 12px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+#scoreboard table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+#scoreboard th {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: normal;
+  text-transform: uppercase;
+  color: #9a93a8;
+}
+
+#scoreboard td {
+  padding: 4px 10px;
+  text-align: right;
+}
+
+#scoreboard th:first-child,
+#scoreboard td:first-child {
+  text-align: left;
+  font-weight: bold;
+}
+
+#scoreboard tr.me {
+  background: rgba(230, 195, 92, 0.18);
+}
+
+#scoreboard tr.offline {
+  opacity: 0.45;
+}
+
+#host-settings {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 12px;
+  border: 2px solid #3a3346;
+  font-size: 14px;
+}
+
+#host-settings p {
+  margin: 0;
+}
+
+#host-note {
+  font-size: 12px;
+  color: #b8b2c4;
+}
+
+.host-fields {
+  display: flex;
+  gap: 12px;
+}
+
+.host-fields label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: #b8b2c4;
+}
+
+.host-fields input {
+  width: 110px;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font: inherit;
+  color: #e6e6e6;
+  background: #0d0b12;
+  border: 2px solid #3a3346;
+}
+
+#host-apply {
+  font: inherit;
+  padding: 6px 14px;
+  color: #111;
+  background: #e6c35c;
+  border: 0;
+  cursor: pointer;
+}
+
+#host-settings :disabled {
+  opacity: 0.5;
+  cursor: default;
 }

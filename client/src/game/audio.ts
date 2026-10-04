@@ -8,6 +8,13 @@ export class GameAudio {
   private context: AudioContext | null = null;
   private noise: AudioBuffer | null = null;
   private master: GainNode | null = null;
+  private volume = 0.5;
+
+  /** Overall loudness, 0 to 1. */
+  setVolume(volume: number): void {
+    this.volume = volume;
+    if (this.master) this.master.gain.value = volume;
+  }
 
   /** Browsers only allow sound after a user gesture; call this from a click. */
   resume(): void {
@@ -15,7 +22,7 @@ export class GameAudio {
       const context = new AudioContext();
       this.context = context;
       this.master = context.createGain();
-      this.master.gain.value = 0.5;
+      this.master.gain.value = this.volume;
       this.master.connect(context.destination);
 
       const length = context.sampleRate / 2;

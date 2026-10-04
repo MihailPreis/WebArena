@@ -18,8 +18,8 @@ export class Prediction {
   /** State one tick earlier, for interpolating between ticks when rendering. */
   previous: PlayerState;
   weapon: WeaponState;
-  /** Only the server decides this; a dead player's inputs have no effect. */
-  alive: boolean;
+  /** Whether inputs have any effect: false while dead or frozen. Only the server decides. */
+  active: boolean;
   private pending: { seq: number; cmd: InputCmd }[] = [];
   private nextSeq = 0;
 
@@ -31,7 +31,7 @@ export class Prediction {
     this.current = initial;
     this.previous = initial;
     this.weapon = { ammo: status.ammo, cooldown: status.cooldown, reload: status.reload };
-    this.alive = status.alive;
+    this.active = status.alive && !status.frozen;
   }
 
   /**
@@ -43,7 +43,7 @@ export class Prediction {
     this.pending.push({ seq, cmd });
     if (this.pending.length > MAX_PENDING) this.pending.shift();
     this.previous = this.current;
-    if (!this.alive) return { seq, fired: false };
+    if (!this.active) return { seq, fired: false };
 
     this.current = stepPlayer(this.current, cmd, this.map, TICK_DT);
     const { weapon, fired } = stepWeapon(this.weapon, cmd.fire, cmd.reload);
@@ -59,7 +59,7 @@ export class Prediction {
   reconcile(serverState: PlayerState, status: SelfStatus, ack: number): Vec3 {
     const before = this.current.pos;
     this.pending = this.pending.filter((input) => input.seq > ack);
-    this.alive = status.alive;
+    this.active = status.alive && !status.frozen;
 
     let state = serverState;
     let previous = serverState;
@@ -68,7 +68,7 @@ export class Prediction {
       cooldown: status.cooldown,
       reload: status.reload,
     };
-    if (this.alive) {
+    if (this.active) {
       for (const { cmd } of this.pending) {
         previous = state;
         state = stepPlayer(state, cmd, this.map, TICK_DT);

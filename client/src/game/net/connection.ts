@@ -4,6 +4,7 @@ import {
   PROTOCOL_VERSION,
   type ClientMessage,
   type EventMsg,
+  type RoomStateMsg,
   type ServerMessage,
   type SnapshotMsg,
   type WelcomeMsg,
@@ -15,6 +16,7 @@ export interface ConnectionHandlers {
   onWelcome(message: WelcomeMsg): void;
   onSnapshot(message: SnapshotMsg): void;
   onEvent(message: EventMsg): void;
+  onRoomState(message: RoomStateMsg): void;
   /** `code` is a WebSocket close code; see `CloseCode` for the server's own. */
   onClose(code: number): void;
 }
@@ -37,7 +39,7 @@ export class Connection {
       this.send({ t: 'hello', v: PROTOCOL_VERSION, token });
       this.pingTimer = window.setInterval(() => {
         this.pingSentAt = performance.now();
-        this.send({ t: 'ping', id: ++this.pingId });
+        this.send({ t: 'ping', id: ++this.pingId, rtt: Math.round(this.ping ?? 0) });
       }, PING_INTERVAL_MS);
     });
     this.socket.addEventListener('message', (event) => {
@@ -51,6 +53,9 @@ export class Connection {
           break;
         case 'event':
           handlers.onEvent(message);
+          break;
+        case 'room':
+          handlers.onRoomState(message);
           break;
         case 'pong':
           if (message.id === this.pingId) this.ping = performance.now() - this.pingSentAt;
@@ -69,6 +74,11 @@ export class Connection {
 
   sendInput(seq: number, cmd: InputCmd, renderTime: number): void {
     this.send(inputMessage(seq, cmd, renderTime));
+  }
+
+  /** Asks the server to change the rules; it only obeys the host, between matches. */
+  sendSettings(killLimit: number, timeLimitMin: number): void {
+    this.send({ t: 'settings', killLimit, timeLimitMin });
   }
 
   private send(message: ClientMessage): void {

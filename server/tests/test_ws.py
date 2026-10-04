@@ -31,6 +31,14 @@ def receive(ws: Any, kind: str, limit: int = 200) -> dict[str, Any]:
     raise AssertionError(f"no {kind} message arrived")
 
 
+def receive_event(ws: Any, name: str) -> dict[str, Any]:
+    for _ in range(50):
+        event = receive(ws, "event")
+        if event["e"] == name:
+            return event
+    raise AssertionError(f"no {name} event arrived")
+
+
 def close_code(api: TestClient, path: str, first_message: dict[str, Any] | None) -> int:
     with pytest.raises(WebSocketDisconnect) as closed, api.websocket_connect(path) as ws:
         if first_message is not None:
@@ -82,11 +90,10 @@ def test_players_see_each_other(api: TestClient) -> None:
         with api.websocket_connect(f"/ws/{code}") as second:
             second.send_json(hello(guest["token"]))
             assert [p["id"] for p in receive(second, "welcome")["players"]] == [host["id"]]
-            joined = receive(first, "event")
-            assert joined["e"] == "join"
+            joined = receive_event(first, "join")
             assert joined["player"] == {k: guest[k] for k in ("id", "name", "color")}
             assert [p["id"] for p in receive(second, "snapshot")["players"]] == [host["id"]]
-        left = receive(first, "event")
+        left = receive_event(first, "leave")
         assert left == {"t": "event", "e": "leave", "id": guest["id"]}
 
 
@@ -138,6 +145,34 @@ def test_malformed_message_closes_only_that_connection(
             receive(bad, "never")
         assert closed.value.code == CloseCode.BAD_MESSAGE
         # The room keeps running for everyone else.
-        assert receive(good, "event")["e"] == "join"
-        assert receive(good, "event")["e"] == "leave"
+        receive_event(good, "join")
+        receive_event(good, "leave")
         receive(good, "snapshot")
+
+
+def test_ping_report_and_host_settings(api: TestClient) -> None:
+    host = new_player(api)
+    code = new_room(api, host["token"])
+    with api.websocket_connect(f"/ws/{code}") as ws:
+        ws.send_json(hello(host["token"]))
+        receive(ws, "welcome")
+        assert receive(ws, "room")["hostId"] == host["id"]
+
+        ws.send_json({"t": "ping", "id": 1, "rtt": 57})
+        receive(ws, "pong")
+        ws.send_json({"t": "settings", "killLimit": 40, "timeLimitMin": 3})
+        state = receive(ws, "room")
+        assert state["settings"]["killLimit"] == 40
+        assert state["players"][0]["ping"] == 57
+        assert api.get(f"/api/rooms/{code}").json()["settings"]["timeLimitMin"] == 3
+
+
+def test_out_of_range_settings_are_a_protocol_error(api: TestClient) -> None:
+    host = new_player(api)
+    code = new_room(api, host["token"])
+    with pytest.raises(WebSocketDisconnect) as closed, api.websocket_connect(f"/ws/{code}") as ws:
+        ws.send_json(hello(host["token"]))
+        receive(ws, "welcome")
+        ws.send_json({"t": "settings", "killLimit": 100000, "timeLimitMin": 3})
+        receive(ws, "never")
+    assert closed.value.code == CloseCode.BAD_MESSAGE

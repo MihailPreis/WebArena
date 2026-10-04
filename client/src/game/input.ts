@@ -67,6 +67,10 @@ export class Input {
     void Promise.resolve(this.target.requestPointerLock()).catch(() => undefined);
   }
 
+  isDown(code: string): boolean {
+    return this.keys.has(code);
+  }
+
   private release(): void {
     this.keys.clear();
     this.firing = false;

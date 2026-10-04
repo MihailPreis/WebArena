@@ -14,6 +14,8 @@
       <div id="damage"></div>
       <div id="crosshair"></div>
       <div id="debug"></div>
+      <div id="match"></div>
+      <div id="scoreboard" hidden></div>
       <ul id="killfeed"></ul>
       <div id="health" title="Здоровье"></div>
       <div id="ammo" title="Патроны"></div>
@@ -46,6 +48,8 @@
           <dd>бег</dd>
           <dt>C</dt>
           <dd>присесть</dd>
+          <dt>Tab</dt>
+          <dd>таблица</dd>
           <dt>Esc</dt>
           <dd>меню</dd>
         </dl>
@@ -54,6 +58,25 @@
           <input id="sensitivity" type="range" step="0.05" />
           <output id="sensitivity-value"></output>
         </label>
+        <label id="volume-row" hidden>
+          Громкость
+          <input id="volume" type="range" min="0" max="1" step="0.05" />
+        </label>
+        <form id="host-settings" hidden>
+          <p>Вы хост комнаты</p>
+          <div class="host-fields">
+            <label>
+              Убийств до победы
+              <input id="host-kill-limit" type="number" required />
+            </label>
+            <label>
+              Минут на матч
+              <input id="host-time-limit" type="number" required />
+            </label>
+          </div>
+          <button id="host-apply" type="submit">Применить</button>
+          <p id="host-note"></p>
+        </form>
         <a href="/">На главную</a>
       </div>
     </div>

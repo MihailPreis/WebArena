@@ -35,6 +35,8 @@ export interface RemoteState {
 export interface SelfStatus {
   hp: number;
   alive: boolean;
+  /** The match is over and the results are shown: nobody can move or shoot. */
+  frozen: boolean;
   ammo: number;
   cooldown: number;
   reload: number;
@@ -72,12 +74,35 @@ export type EventMsg =
   | { t: 'event'; e: 'kill'; by: string; target: string; head: boolean }
   | { t: 'event'; e: 'spawn'; id: string; yaw: number };
 
+export interface ScoreRow extends PublicPlayer {
+  kills: number;
+  deaths: number;
+  /** Round-trip time in milliseconds. */
+  ping: number;
+  /** False for a player who left during the match; they stay in the table until it ends. */
+  online: boolean;
+}
+
+export type RoomState = 'waiting' | 'match' | 'results';
+
+/** Match state, rules and the score table. Sent on every change and every couple of seconds. */
+export interface RoomStateMsg {
+  t: 'room';
+  state: RoomState;
+  /** Seconds until the current state ends; null while waiting for players. */
+  timeLeft: number | null;
+  hostId: string;
+  settings: { mode: string; killLimit: number; timeLimitMin: number; maxPlayers: number };
+  /** Ordered from first place to last. */
+  players: ScoreRow[];
+}
+
 export interface PongMsg {
   t: 'pong';
   id: number;
 }
 
-export type ServerMessage = WelcomeMsg | SnapshotMsg | EventMsg | PongMsg;
+export type ServerMessage = WelcomeMsg | SnapshotMsg | EventMsg | RoomStateMsg | PongMsg;
 
 export type ClientMessage =
   | { t: 'hello'; v: number; token: string }
@@ -96,7 +121,8 @@ export type ClientMessage =
       /** Server time the client is drawing other players at, for lag compensation. */
       rt: number;
     }
-  | { t: 'ping'; id: number };
+  | { t: 'ping'; id: number; rtt: number }
+  | { t: 'settings'; killLimit: number; timeLimitMin: number };
 
 export function inputMessage(seq: number, cmd: InputCmd, renderTime: number): ClientMessage {
   return {

@@ -57,12 +57,13 @@
     }
   },
   "net": {
-    "protocolVersion": 2,
+    "protocolVersion": 3,
     "snapshotRate": 30,
     "interpolationDelayMs": 100,
     "maxInputBurst": 20,
     "historyS": 1,
-    "maxRewindS": 0.5
+    "maxRewindS": 0.5,
+    "roomStateIntervalS": 2
   },
   "combat": {
     "maxHealth": 100,
@@ -77,5 +78,9 @@
     "magazine": 20,
     "reloadTicks": 90,
     "range": 100
+  },
+  "match": {
+    "minPlayers": 2,
+    "resultsS": 10
   }
 }

@@ -1,6 +1,7 @@
 import '../style.css';
 import './game.css';
 import arenaJson from '@shared/maps/arena.json';
+import constants from '@shared/constants.json';
 import { ApiError, getRoom, isRoomFull, type RoomInfo } from '../shared/api';
 import { roomCodeFromPath } from '../shared/roomCode';
 import { describeSettings } from '../shared/roomText';
@@ -18,13 +19,22 @@ import {
   SNAPSHOT_RATE,
   type EventMsg,
   type PublicPlayer,
+  type RoomStateMsg,
   type SelfStatus,
   type SnapshotMsg,
   type WelcomeMsg,
 } from './net/protocol';
 import { createRenderer } from './render/renderer';
 import { createViewmodel } from './render/viewmodel';
-import { loadSensitivity, saveSensitivity, SENSITIVITY_MAX, SENSITIVITY_MIN } from './settings';
+import { formatClock, Scoreboard } from './scoreboard';
+import {
+  loadSensitivity,
+  loadVolume,
+  saveSensitivity,
+  saveVolume,
+  SENSITIVITY_MAX,
+  SENSITIVITY_MIN,
+} from './settings';
 import { PLAYER, TICK_DT } from './sim/constants';
 import { FixedStep } from './sim/fixedStep';
 import { parseMap, type Vec3 } from './sim/map';
@@ -88,6 +98,8 @@ async function enter(): Promise<void> {
 
   const roster = new Map<string, PublicPlayer>();
   let game: ReturnType<typeof createGame> | null = null;
+  // The room state can arrive before the game is ready to show it.
+  let pendingRoomState: RoomStateMsg | null = null;
   const connection = new Connection(code, session.token, {
     onWelcome(welcome) {
       for (const other of welcome.players) roster.set(other.id, other);
@@ -100,6 +112,7 @@ async function enter(): Promise<void> {
       }
       message.textContent = '';
       setupCopyLink();
+      if (pendingRoomState) game.handleRoomState(pendingRoomState);
     },
     onSnapshot(snapshot) {
       game?.handleSnapshot(snapshot);
@@ -108,6 +121,15 @@ async function enter(): Promise<void> {
       if (event.e === 'join') roster.set(event.player.id, event.player);
       else if (event.e === 'leave') roster.delete(event.id);
       else game?.handleEvent(event);
+    },
+    onRoomState(state) {
+      element('room-info').textContent = describeSettings(state.settings);
+      // The table also lists players who joined before this client did.
+      for (const row of state.players) {
+        if (row.online && row.id !== session.profile.id) roster.set(row.id, row);
+      }
+      pendingRoomState = state;
+      game?.handleRoomState(state);
     },
     onClose(closeCode) {
       game?.stop();
@@ -174,6 +196,34 @@ function createGame({ welcome, connection, roster, self }: GameOptions) {
     saveSensitivity(sensitivity);
   });
 
+  const volume = element<HTMLInputElement>('volume');
+  volume.value = String(loadVolume());
+  audio.setVolume(Number(volume.value));
+  volume.addEventListener('input', () => {
+    audio.setVolume(Number(volume.value));
+    saveVolume(Number(volume.value));
+  });
+
+  // Rules of the next match, editable by the host between matches.
+  const hostForm = element<HTMLFormElement>('host-settings');
+  const hostKillLimit = element<HTMLInputElement>('host-kill-limit');
+  const hostTimeLimit = element<HTMLInputElement>('host-time-limit');
+  const hostApply = element<HTMLButtonElement>('host-apply');
+  const hostNote = element('host-note');
+  hostKillLimit.min = String(constants.room.killLimit.min);
+  hostKillLimit.max = String(constants.room.killLimit.max);
+  hostTimeLimit.min = String(constants.room.timeLimitMin.min);
+  hostTimeLimit.max = String(constants.room.timeLimitMin.max);
+  hostForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    connection.sendSettings(hostKillLimit.valueAsNumber, hostTimeLimit.valueAsNumber);
+  });
+
+  const scoreboard = new Scoreboard(element('scoreboard'), welcome.id);
+  const matchLine = element('match');
+  let roomState: RoomStateMsg | null = null;
+  let roomStateAt = 0;
+
   let running = true;
   const input = new Input(
     canvas,
@@ -191,7 +241,9 @@ function createGame({ welcome, connection, roster, self }: GameOptions) {
   };
   play.addEventListener('click', lock);
   canvas.addEventListener('click', lock);
-  for (const id of ['play', 'controls', 'sensitivity-row']) element(id).hidden = false;
+  for (const id of ['play', 'controls', 'sensitivity-row', 'volume-row']) {
+    element(id).hidden = false;
+  }
 
   const myId = welcome.id;
   const lookup = (id: string): NamedPlayer =>
@@ -228,7 +280,7 @@ function createGame({ welcome, connection, roster, self }: GameOptions) {
   function footsteps(): void {
     const state = prediction.current;
     const before = prediction.previous;
-    if (prediction.alive && state.onGround) {
+    if (prediction.active && state.onGround) {
       stride += Math.hypot(state.pos[0] - before.pos[0], state.pos[2] - before.pos[2]);
       if (stride >= nextStep) {
         nextStep = stride + STEP_DISTANCE;
@@ -285,7 +337,7 @@ function createGame({ welcome, connection, roster, self }: GameOptions) {
     if (reloading && !wasReloading) audio.reload();
     wasReloading = reloading;
 
-    const dead = !prediction.alive;
+    const dead = !status.alive;
     const camera = view.update(
       prediction.previous,
       prediction.current,
@@ -305,6 +357,20 @@ function createGame({ welcome, connection, roster, self }: GameOptions) {
       dead ? (killer ?? UNKNOWN_PLAYER) : null,
       COMBAT.respawnDelayS - (now - diedAt) / 1000,
     );
+
+    if (roomState) {
+      const timeLeft =
+        roomState.timeLeft === null ? null : roomState.timeLeft - (now - roomStateAt) / 1000;
+      const results = roomState.state === 'results';
+      scoreboard.visible = results || input.isDown('Tab');
+      scoreboard.update(roomState, timeLeft);
+      const mine = roomState.players.find((row) => row.id === myId);
+      if (roomState.state === 'waiting') matchLine.textContent = 'Ожидание игроков';
+      else if (results) matchLine.textContent = 'Матч окончен';
+      else {
+        matchLine.textContent = `${formatClock(timeLeft ?? 0)} · ${mine?.kills ?? 0} / ${roomState.settings.killLimit}`;
+      }
+    }
 
     if (dt > 0) fps += (1 / dt - fps) * 0.05;
     const speed = Math.hypot(prediction.current.vel[0], prediction.current.vel[2]);
@@ -326,6 +392,27 @@ function createGame({ welcome, connection, roster, self }: GameOptions) {
       status = snapshot.status;
       remotes.push(snapshot.tick / SNAPSHOT_RATE, performance.now() / 1000, snapshot.players);
       view.nudge(prediction.reconcile(snapshot.you, snapshot.status, snapshot.ack));
+    },
+    handleRoomState(state: RoomStateMsg): void {
+      const previous = roomState;
+      roomState = state;
+      roomStateAt = performance.now();
+
+      const isHost = state.hostId === myId;
+      const editable = state.state !== 'match';
+      hostForm.hidden = !isHost;
+      hostKillLimit.disabled = hostTimeLimit.disabled = hostApply.disabled = !editable;
+      hostNote.textContent = editable
+        ? 'Изменения действуют со следующего матча.'
+        : 'Параметры можно менять между матчами.';
+      // Do not overwrite what the host is typing with every periodic update.
+      const changed =
+        previous?.settings.killLimit !== state.settings.killLimit ||
+        previous.settings.timeLimitMin !== state.settings.timeLimitMin;
+      if (changed) {
+        hostKillLimit.value = String(state.settings.killLimit);
+        hostTimeLimit.value = String(state.settings.timeLimitMin);
+      }
     },
     handleEvent(event: EventMsg): void {
       switch (event.e) {

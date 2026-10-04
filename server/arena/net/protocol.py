@@ -7,7 +7,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from arena.game.movement import InputCmd, PlayerState
-from arena.shared import CONSTANTS
+from arena.shared import CONSTANTS, ROOM
 
 PROTOCOL_VERSION: int = CONSTANTS["net"]["protocolVersion"]
 
@@ -67,10 +67,20 @@ class InputMsg(_ClientModel):
 class PingMsg(_ClientModel):
     t: Literal["ping"]
     id: int
+    # The client's latest measured round trip, shown to others in the score table.
+    rtt: int = Field(0, ge=0, le=9999)
 
 
-ClientMessage = Annotated[InputMsg | PingMsg, Field(discriminator="t")]
-CLIENT_MESSAGE: TypeAdapter[InputMsg | PingMsg] = TypeAdapter(ClientMessage)
+class SettingsMsg(_ClientModel):
+    """The host changes the rules for the next match."""
+
+    t: Literal["settings"]
+    killLimit: int = Field(ge=ROOM["killLimit"]["min"], le=ROOM["killLimit"]["max"])
+    timeLimitMin: int = Field(ge=ROOM["timeLimitMin"]["min"], le=ROOM["timeLimitMin"]["max"])
+
+
+ClientMessage = Annotated[InputMsg | PingMsg | SettingsMsg, Field(discriminator="t")]
+CLIENT_MESSAGE: TypeAdapter[InputMsg | PingMsg | SettingsMsg] = TypeAdapter(ClientMessage)
 
 
 def encode(message: dict[str, Any]) -> str:
