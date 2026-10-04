@@ -1,9 +1,12 @@
 import asyncio
 import contextlib
+import logging
+from collections import Counter
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
+from arena.config import Settings
 from arena.db.database import Database
 from arena.db.players import get_player_by_token
 from arena.game.room import Member, Room, RoomFull
@@ -17,12 +20,18 @@ from arena.net.protocol import (
     PingMsg,
     encode,
 )
+from arena.ratelimit import RateLimiter
+
+log = logging.getLogger("arena.net")
 
 router = APIRouter()
 
 HELLO_TIMEOUT_S = 5
 # About two seconds of snapshots; a client further behind than that is dropped.
 OUTBOX_SIZE = 64
+# A client sends 60 inputs a second and may briefly catch up after a stall.
+MESSAGES_PER_SECOND = 240
+MESSAGE_BURST = 480
 
 
 class WsConnection:
@@ -63,13 +72,25 @@ class WsConnection:
 
 
 async def _read(websocket: WebSocket, room: Room, member: Member, conn: WsConnection) -> None:
+    flood = RateLimiter(MESSAGES_PER_SECOND, MESSAGE_BURST)
     while True:
+        refusal: CloseCode | None = None
         try:
-            message = CLIENT_MESSAGE.validate_json(await websocket.receive_text())
+            text = await websocket.receive_text()
+            if flood.allow(""):
+                message = CLIENT_MESSAGE.validate_json(text)
+            else:
+                refusal = CloseCode.TOO_FAST
         except WebSocketDisconnect:
             return
-        except ValidationError:
-            conn.close(CloseCode.BAD_MESSAGE)
+        except (ValidationError, KeyError):  # KeyError: a binary frame instead of text.
+            refusal = CloseCode.BAD_MESSAGE
+        if refusal is not None:
+            log.warning(
+                "client_dropped",
+                extra={"room": room.code, "player": member.player.id, "reason": refusal.name},
+            )
+            conn.close(refusal)
             await asyncio.Event().wait()  # The writer closes the socket and ends the session.
             return
         if isinstance(message, InputMsg):
@@ -87,6 +108,22 @@ async def game_socket(websocket: WebSocket, code: str) -> None:
     rooms: RoomRegistry = websocket.app.state.rooms
     db: Database = websocket.app.state.db
 
+    settings: Settings = websocket.app.state.settings
+    connections: Counter[str] = websocket.app.state.ws_connections
+    address = websocket.client.host if websocket.client else "unknown"
+    if 0 < settings.ws_max_per_ip <= connections[address]:
+        await websocket.close(code=CloseCode.TOO_MANY_CONNECTIONS)
+        return
+    connections[address] += 1
+    try:
+        await _session(websocket, rooms, db, code)
+    finally:
+        connections[address] -= 1
+        if connections[address] <= 0:
+            del connections[address]
+
+
+async def _session(websocket: WebSocket, rooms: RoomRegistry, db: Database, code: str) -> None:
     room = rooms.get(code)
     if room is None:
         await websocket.close(code=CloseCode.ROOM_NOT_FOUND)
@@ -96,7 +133,7 @@ async def game_socket(websocket: WebSocket, code: str) -> None:
             hello = Hello.model_validate_json(await websocket.receive_text())
     except WebSocketDisconnect:
         return
-    except (ValidationError, TimeoutError):
+    except (ValidationError, TimeoutError, KeyError):
         await websocket.close(code=CloseCode.BAD_MESSAGE)
         return
     if hello.v != PROTOCOL_VERSION:

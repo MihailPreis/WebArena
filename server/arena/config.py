@@ -17,6 +17,15 @@ class Settings:
     # Kills a player needs before appearing in the K/D leaderboard.
     leaderboard_min_kills: int = 20
     leaderboard_cache_s: float = 15
+    # New profiles and rooms allowed per minute from one address; 0 disables the limit.
+    profiles_per_minute: float = 10
+    rooms_per_minute: float = 6
+    # Simultaneous game connections from one address; 0 disables the limit.
+    ws_max_per_ip: int = 16
+    # Addresses of reverse proxies whose X-Forwarded-For header is trusted ("*" for any).
+    trusted_proxies: str = "127.0.0.1"
+    log_json: bool = False
+    reload: bool = False
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -34,4 +43,12 @@ class Settings:
             leaderboard_cache_s=float(
                 env.get("ARENA_LEADERBOARD_CACHE_S", defaults.leaderboard_cache_s)
             ),
+            profiles_per_minute=float(
+                env.get("ARENA_PROFILES_PER_MINUTE", defaults.profiles_per_minute)
+            ),
+            rooms_per_minute=float(env.get("ARENA_ROOMS_PER_MINUTE", defaults.rooms_per_minute)),
+            ws_max_per_ip=int(env.get("ARENA_WS_MAX_PER_IP", defaults.ws_max_per_ip)),
+            trusted_proxies=env.get("ARENA_TRUSTED_PROXIES", defaults.trusted_proxies),
+            log_json=env.get("ARENA_LOG_JSON", "") == "1",
+            reload=env.get("ARENA_RELOAD", "") == "1",
         )

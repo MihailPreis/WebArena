@@ -38,7 +38,8 @@ ENV PATH=/app/server/.venv/bin:$PATH \
     ARENA_PORT=8000 \
     ARENA_DB_PATH=/data/arena.db \
     ARENA_CLIENT_DIST=/app/client \
-    ARENA_SHARED_DIR=/app/shared
+    ARENA_SHARED_DIR=/app/shared \
+    ARENA_LOG_JSON=1
 
 USER arena
 VOLUME /data

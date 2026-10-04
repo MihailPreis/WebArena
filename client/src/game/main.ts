@@ -58,7 +58,23 @@ const CLOSE_MESSAGES: Record<number, string> = {
   [CloseCode.REPLACED]: 'Игра открыта в другой вкладке.',
   [CloseCode.VERSION_MISMATCH]: 'Вышла новая версия игры. Обновите страницу.',
   [CloseCode.BAD_TOKEN]: 'Профиль не найден. Обновите страницу.',
+  [CloseCode.TOO_MANY_CONNECTIONS]: 'Слишком много подключений с вашего адреса.',
 };
+
+// Close codes after which trying again cannot help.
+const FINAL_CLOSE_CODES = new Set<number>([
+  CloseCode.BAD_MESSAGE,
+  CloseCode.BAD_TOKEN,
+  CloseCode.ROOM_FULL,
+  CloseCode.ROOM_NOT_FOUND,
+  CloseCode.VERSION_MISMATCH,
+  CloseCode.REPLACED,
+  CloseCode.TOO_FAST,
+  CloseCode.TOO_MANY_CONNECTIONS,
+]);
+const MAX_RECONNECT_ATTEMPTS = 6;
+const RECONNECT_BASE_DELAY_MS = 500;
+const RECONNECT_MAX_DELAY_MS = 8000;
 
 async function enter(): Promise<void> {
   const code = roomCodeFromPath(window.location.pathname);
@@ -68,6 +84,8 @@ async function enter(): Promise<void> {
     return;
   }
   title.textContent = `Комната ${code}`;
+  // A constant, so that callbacks below know the code is not null.
+  const roomCode = code;
 
   let session: Session;
   let room: RoomInfo;
@@ -100,43 +118,63 @@ async function enter(): Promise<void> {
   let game: ReturnType<typeof createGame> | null = null;
   // The room state can arrive before the game is ready to show it.
   let pendingRoomState: RoomStateMsg | null = null;
-  const connection = new Connection(code, session.token, {
-    onWelcome(welcome) {
-      for (const other of welcome.players) roster.set(other.id, other);
-      try {
-        game = createGame({ welcome, connection, roster, self: session.profile });
-      } catch (error) {
-        console.error(error);
-        message.textContent = 'Не удалось запустить игру. Проверьте, что в браузере включён WebGL.';
-        return;
-      }
-      message.textContent = '';
-      setupCopyLink();
-      if (pendingRoomState) game.handleRoomState(pendingRoomState);
-    },
-    onSnapshot(snapshot) {
-      game?.handleSnapshot(snapshot);
-    },
-    onEvent(event) {
-      if (event.e === 'join') roster.set(event.player.id, event.player);
-      else if (event.e === 'leave') roster.delete(event.id);
-      else game?.handleEvent(event);
-    },
-    onRoomState(state) {
-      element('room-info').textContent = describeSettings(state.settings);
-      // The table also lists players who joined before this client did.
-      for (const row of state.players) {
-        if (row.online && row.id !== session.profile.id) roster.set(row.id, row);
-      }
-      pendingRoomState = state;
-      game?.handleRoomState(state);
-    },
-    onClose(closeCode) {
-      game?.stop();
-      message.textContent =
-        CLOSE_MESSAGES[closeCode] ?? 'Соединение потеряно. Обновите страницу, чтобы вернуться.';
-    },
-  });
+  let attempts = 0;
+  let linkReady = false;
+
+  function connect(): void {
+    const connection = new Connection(roomCode, session.token, {
+      onWelcome(welcome) {
+        attempts = 0;
+        roster.clear();
+        for (const other of welcome.players) roster.set(other.id, other);
+        try {
+          if (game) game.rejoin(welcome, connection);
+          else game = createGame({ welcome, connection, roster, self: session.profile });
+        } catch (error) {
+          console.error(error);
+          message.textContent =
+            'Не удалось запустить игру. Проверьте, что в браузере включён WebGL.';
+          return;
+        }
+        message.textContent = '';
+        if (!linkReady) setupCopyLink();
+        linkReady = true;
+        if (pendingRoomState) game.handleRoomState(pendingRoomState);
+      },
+      onSnapshot(snapshot) {
+        game?.handleSnapshot(snapshot);
+      },
+      onEvent(event) {
+        if (event.e === 'join') roster.set(event.player.id, event.player);
+        else if (event.e === 'leave') roster.delete(event.id);
+        else game?.handleEvent(event);
+      },
+      onRoomState(state) {
+        element('room-info').textContent = describeSettings(state.settings);
+        // The table also lists players who joined before this client did.
+        for (const row of state.players) {
+          if (row.online && row.id !== session.profile.id) roster.set(row.id, row);
+        }
+        pendingRoomState = state;
+        game?.handleRoomState(state);
+      },
+      onClose(closeCode) {
+        if (FINAL_CLOSE_CODES.has(closeCode) || attempts >= MAX_RECONNECT_ATTEMPTS) {
+          game?.stop();
+          message.textContent =
+            CLOSE_MESSAGES[closeCode] ?? 'Соединение потеряно. Обновите страницу, чтобы вернуться.';
+          return;
+        }
+        // The server keeps the player's place and score in the room for a while.
+        const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** attempts, RECONNECT_MAX_DELAY_MS);
+        attempts++;
+        message.textContent = 'Соединение потеряно. Переподключение…';
+        game?.pause('Соединение потеряно — переподключение…');
+        window.setTimeout(connect, delay);
+      },
+    });
+  }
+  connect();
 }
 
 function setupCopyLink(): void {
@@ -170,7 +208,8 @@ const STEP_DISTANCE = 2.2;
 const MUZZLE_DISTANCE = 0.5;
 const UNKNOWN_PLAYER: NamedPlayer = { name: '?', color: '#ffffff' };
 
-function createGame({ welcome, connection, roster, self }: GameOptions) {
+function createGame({ welcome, connection: firstConnection, roster, self }: GameOptions) {
+  let connection = firstConnection;
   const canvas = element<HTMLCanvasElement>('view');
   const overlay = element('overlay');
   const hudRoot = element('hud');
@@ -251,8 +290,8 @@ function createGame({ welcome, connection, roster, self }: GameOptions) {
 
   const loop = new FixedStep(TICK_DT);
   const view = new ViewSmoother();
-  const prediction = new Prediction(map, welcome.you, welcome.status);
-  const remotes = new RemoteInterpolator(INTERPOLATION_DELAY_S);
+  let prediction = new Prediction(map, welcome.you, welcome.status);
+  let remotes = new RemoteInterpolator(INTERPOLATION_DELAY_S);
   let status: SelfStatus = welcome.status;
   let others: (NamedPlayer & { id: string; pos: Vec3; yaw: number; crouched: boolean })[] = [];
   let killer: NamedPlayer | null = null;
@@ -454,10 +493,28 @@ function createGame({ welcome, connection, roster, self }: GameOptions) {
           break;
       }
     },
-    /** Freezes the game after the connection is gone; the last frame stays on screen. */
+    /** Holds the game still while the connection is being restored. */
+    pause(reason: string): void {
+      running = false;
+      hud.setNetworkStatus(reason);
+    },
+    /** Continues on a new connection: the server has put the player back into the room. */
+    rejoin(again: WelcomeMsg, newConnection: Connection): void {
+      connection = newConnection;
+      prediction = new Prediction(map, again.you, again.status);
+      remotes = new RemoteInterpolator(INTERPOLATION_DELAY_S);
+      status = again.status;
+      input.yaw = again.you.yaw;
+      input.pitch = 0;
+      view.reset();
+      hud.setNetworkStatus('');
+      running = true;
+    },
+    /** Freezes the game for good; the last frame stays on screen. */
     stop(): void {
       running = false;
       play.hidden = true;
+      hud.setNetworkStatus('');
       if (document.pointerLockElement) document.exitPointerLock();
     },
   };

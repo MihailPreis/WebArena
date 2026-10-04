@@ -1,13 +1,14 @@
 import asyncio
 import logging
 import re
+from collections import Counter
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from arena.api import leaderboard, players, rooms
@@ -18,6 +19,7 @@ from arena.game.map import load_map
 from arena.game.results import MatchResult
 from arena.game.rooms import RoomRegistry
 from arena.net import ws
+from arena.ratelimit import RateLimiter
 
 ROOM_CODE_RE = re.compile(r"[A-Z0-9]{4}")
 
@@ -45,15 +47,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.state.settings = settings
     app.state.leaderboard_cache = {}
+    app.state.ws_connections = Counter()
+    app.state.limiters = {
+        "profiles": RateLimiter(settings.profiles_per_minute / 60, settings.profiles_per_minute),
+        "rooms": RateLimiter(settings.rooms_per_minute / 60, settings.rooms_per_minute),
+    }
+    matches_saved = 0
 
     saves: set[asyncio.Task[None]] = set()
 
     async def save(result: MatchResult) -> None:
+        nonlocal matches_saved
         try:
             await save_match(app.state.db, result)
             app.state.leaderboard_cache.clear()
+            matches_saved += 1
+            log.info("match_saved", extra={"room": result.room_code})
         except Exception:
-            log.exception("Could not save the match played in room %s", result.room_code)
+            log.exception("match_not_saved", extra={"room": result.room_code})
 
     def on_match_end(result: MatchResult) -> None:
         # Written in the background: the game loop must not wait for the database.
@@ -79,6 +90,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/metrics", response_class=PlainTextResponse)
+    async def metrics() -> str:
+        """Load figures in the Prometheus text format."""
+        values = {**app.state.rooms.metrics(), "arena_matches_saved_total": matches_saved}
+        return "".join(f"{name} {value:g}\n" for name, value in values.items())
 
     @app.get("/")
     async def index() -> FileResponse:

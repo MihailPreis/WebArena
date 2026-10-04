@@ -22,6 +22,8 @@ class CloseCode(IntEnum):
     VERSION_MISMATCH = 4004
     REPLACED = 4005
     TOO_SLOW = 4006
+    TOO_FAST = 4007
+    TOO_MANY_CONNECTIONS = 4008
 
 
 class _ClientModel(BaseModel):

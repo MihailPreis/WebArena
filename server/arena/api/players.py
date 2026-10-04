@@ -1,8 +1,8 @@
 import secrets
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from arena.api.deps import CurrentPlayer, Db
+from arena.api.deps import CurrentPlayer, Db, rate_limited
 from arena.api.models import PlayerCreated, PlayerOut, PlayerStatsOut, PlayerUpdate
 from arena.db import players, stats
 from arena.shared import PROFILE
@@ -10,7 +10,7 @@ from arena.shared import PROFILE
 router = APIRouter(prefix="/api/players")
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, dependencies=[Depends(rate_limited("profiles"))])
 async def create_player(db: Db) -> PlayerCreated:
     player, token = await players.create_player(
         db, PROFILE["defaultName"], secrets.choice(PROFILE["colors"])

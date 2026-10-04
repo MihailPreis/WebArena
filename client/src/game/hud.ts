@@ -26,6 +26,7 @@ export class Hud {
   private readonly deathTitle = element('death-title');
   private readonly deathTimer = element('death-timer');
   private readonly debug = element('debug');
+  private readonly network = element('network');
   private hitTimer = 0;
 
   setHealth(hp: number): void {
@@ -87,6 +88,12 @@ export class Hud {
     name.style.color = killer.color;
     this.deathTitle.append('Вас убил ', name);
     this.deathTimer.textContent = `Возрождение через ${Math.max(Math.ceil(secondsLeft), 0)}`;
+  }
+
+  /** Shows a connection problem over the game; an empty string hides it. */
+  setNetworkStatus(text: string): void {
+    this.network.textContent = text;
+    this.network.hidden = text === '';
   }
 
   setDebug(text: string): void {

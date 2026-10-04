@@ -37,6 +37,7 @@ const joinMessage = element('join-message');
 const codeInput = element<HTMLInputElement>('code');
 
 const SERVER_DOWN = 'Сервер недоступен. Попробуйте обновить страницу.';
+const TOO_MANY_REQUESTS = 'Слишком много запросов. Подождите минуту и попробуйте снова.';
 
 function setupLimit(id: string, limit: { min: number; max: number; default: number }) {
   const input = element<HTMLInputElement>(id);
@@ -131,10 +132,10 @@ function setupRooms(session: Session): void {
       .then((room) => window.location.assign(`/game/${room.code}`))
       .catch((error: unknown) => {
         createButton.disabled = false;
-        createMessage.textContent =
-          error instanceof ApiError && error.status === 422
-            ? 'Проверьте параметры матча.'
-            : SERVER_DOWN;
+        const failure = error instanceof ApiError ? error.status : 0;
+        if (failure === 422) createMessage.textContent = 'Проверьте параметры матча.';
+        else if (failure === 429) createMessage.textContent = TOO_MANY_REQUESTS;
+        else createMessage.textContent = SERVER_DOWN;
       });
   });
 
@@ -202,11 +203,11 @@ function setupLeaderboard(myId: string | null): void {
       if (board.players.length === 0) {
         note.textContent =
           by === 'kd'
-            ? `Пока никто не набрал ${board.minKills} убийств — столько нужно для рейтинга по K/D.`
+            ? `Пока никто не набрал ${board.minKills} убийств — столько нужно для рейтинга по K/\u2060D.`
             : 'Пока никто не сыграл ни одного матча.';
       } else {
         note.textContent =
-          by === 'kd' ? `В рейтинге по K/D — игроки от ${board.minKills} убийств.` : '';
+          by === 'kd' ? `В рейтинге по K/\u2060D — игроки от ${board.minKills} убийств.` : '';
       }
     } catch {
       body.replaceChildren();
@@ -244,6 +245,7 @@ ensureSession()
   })
   .catch((error: unknown) => {
     console.error(error);
-    status.textContent = SERVER_DOWN;
+    status.textContent =
+      error instanceof ApiError && error.status === 429 ? TOO_MANY_REQUESTS : SERVER_DOWN;
     setupLeaderboard(null);
   });

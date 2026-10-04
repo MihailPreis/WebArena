@@ -9,7 +9,7 @@ dev:
 	$(MAKE) -j2 dev-server dev-client
 
 dev-server:
-	cd server && uv run uvicorn arena.main:app --reload --port 8000
+	cd server && ARENA_RELOAD=1 uv run python -m arena
 
 dev-client:
 	cd client && npm run dev

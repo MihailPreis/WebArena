@@ -8,6 +8,11 @@ services:
   arena:
     image: ghcr.io/mihailpreis/webarena:latest
     restart: unless-stopped
+    environment:
+      # The only way in is through Caddy, so its X-Forwarded-For header can be trusted.
+      # Without this every player would appear to come from the proxy's address and
+      # share one rate limit.
+      ARENA_TRUSTED_PROXIES: '*'
     volumes:
       - arena-data:/data
     # On stop the server ends running matches and saves their results.

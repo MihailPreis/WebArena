@@ -26,7 +26,13 @@ CAROL = Player("c3", "Carol", "#2ed573")
 
 @pytest.fixture
 def app_settings(db_path: Path, tmp_path: Path) -> Settings:
-    return Settings(db_path=db_path, client_dist=tmp_path / "dist", leaderboard_min_kills=5)
+    return Settings(
+        db_path=db_path,
+        client_dist=tmp_path / "dist",
+        leaderboard_min_kills=5,
+        profiles_per_minute=0,
+        rooms_per_minute=0,
+    )
 
 
 @pytest.fixture

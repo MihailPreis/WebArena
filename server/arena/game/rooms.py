@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import secrets
 import string
 import time
@@ -11,6 +12,8 @@ from arena.game.room import MatchSettings, Room
 CODE_ALPHABET = string.ascii_uppercase + string.digits
 CODE_LENGTH = 4
 _CODE_ATTEMPTS = 64
+
+log = logging.getLogger("arena.rooms")
 
 
 class RoomCodesExhausted(Exception):
@@ -40,6 +43,7 @@ class RoomRegistry:
             if code not in self._rooms:
                 room = Room(code, host_id, settings, self._map, self._clock, self._on_match_end)
                 self._rooms[code] = room
+                log.info("room_created", extra={"room": code, "rooms": len(self._rooms)})
                 return room
         raise RoomCodesExhausted
 
@@ -49,6 +53,18 @@ class RoomRegistry:
             del self._rooms[code]
             return None
         return room
+
+    def metrics(self) -> dict[str, float]:
+        """Current load, for the /metrics endpoint."""
+        rooms = list(self._rooms.values())
+        ticks = [duration for room in rooms for duration in room.tick_durations]
+        return {
+            "arena_rooms": len(rooms),
+            "arena_rooms_active": sum(1 for room in rooms if room.connected),
+            "arena_players": sum(len(room.connected) for room in rooms),
+            "arena_tick_seconds_avg": sum(ticks) / len(ticks) if ticks else 0.0,
+            "arena_tick_seconds_max": max(ticks, default=0.0),
+        }
 
     async def shutdown(self) -> None:
         """Stops every room. Matches in progress end here, so their results are not lost."""

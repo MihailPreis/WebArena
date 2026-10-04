@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from arena.api.deps import CurrentPlayer, Rooms
+from arena.api.deps import CurrentPlayer, Rooms, rate_limited
 from arena.api.models import RoomOut, RoomSettings
 from arena.game.room import MatchSettings, Room
 from arena.game.rooms import RoomCodesExhausted
@@ -22,7 +22,7 @@ def _room_out(room: Room) -> RoomOut:
     )
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, dependencies=[Depends(rate_limited("rooms"))])
 async def create_room(
     rooms: Rooms, player: CurrentPlayer, settings: RoomSettings | None = None
 ) -> RoomOut:

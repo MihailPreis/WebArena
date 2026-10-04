@@ -137,6 +137,8 @@ class Room:
         self._arrivals = 0
         self._on_match_end = on_match_end
         self._match_started_at = 0
+        # How long recent ticks took, in seconds: about ten seconds' worth.
+        self.tick_durations: deque[float] = deque(maxlen=300)
         # Set while nobody is connected; the registry drops the room once this is old enough.
         self.empty_since: float | None = clock()
         self._clock = clock
@@ -196,6 +198,10 @@ class Room:
         if not rejoining:
             self._broadcast({"t": "event", "e": "join", "player": _public(player)}, skip=member)
         self._send_room_state()
+        log.info(
+            "player_joined",
+            extra={"room": self.code, "player": player.id, "players": len(self.connected)},
+        )
         return member
 
     def leave(self, member: Member, conn: Outbox) -> None:
@@ -211,6 +217,10 @@ class Room:
         if not connected:
             self.empty_since = self._clock()
         self._send_room_state()
+        log.info(
+            "player_left",
+            extra={"room": self.code, "player": member.player.id, "players": len(connected)},
+        )
 
     def change_settings(self, member: Member, kill_limit: int, time_limit_min: int) -> None:
         """Lets the host change the rules, but only between matches."""
@@ -267,8 +277,10 @@ class Room:
         views = {
             member.player.id: {
                 "id": member.player.id,
-                "pos": member.state.pos,
-                "yaw": member.state.yaw,
+                # Other players are only drawn, so millimetres are enough; this keeps
+                # snapshots small. The receiver's own state stays exact for prediction.
+                "pos": [round(axis, 3) for axis in member.state.pos],
+                "yaw": round(member.state.yaw, 3),
                 "crouched": member.state.crouched,
             }
             for member in connected
@@ -306,17 +318,20 @@ class Room:
         loop = asyncio.get_running_loop()
         next_tick = loop.time()
         while self.connected:
+            started = time.perf_counter()
             try:
                 self.tick()
             except Exception:
                 # One bad tick must not take the room down.
-                log.exception("Tick failed in room %s", self.code)
+                log.exception("tick_failed", extra={"room": self.code})
+            self.tick_durations.append(time.perf_counter() - started)
             # Schedule against the ideal timeline, so sleep jitter does not accumulate.
             next_tick += SNAPSHOT_INTERVAL
             delay = next_tick - loop.time()
             if delay < -1:
                 next_tick = loop.time()  # Stalled for too long to catch up; start over.
             await asyncio.sleep(max(delay, 0))
+        self.tick_durations.clear()  # An idle room should not skew the load figures.
 
     def _fire(self, shooter: Member, cmd: InputCmd, render_time: float) -> None:
         now = self.time
@@ -412,10 +427,19 @@ class Room:
         self.state = RESULTS
         self.state_ends_at = self.time + RESULTS_S
         self._send_room_state()
-        if self._on_match_end is None:
-            return
         members = list(self.members.values())
         winner = self.mode.winner(members)
+        log.info(
+            "match_ended",
+            extra={
+                "room": self.code,
+                "players": len(members),
+                "kills": sum(member.kills for member in members),
+                "winner": winner.player.id if winner else None,
+            },
+        )
+        if self._on_match_end is None:
+            return
         self._on_match_end(
             MatchResult(
                 room_code=self.code,
@@ -449,6 +473,7 @@ class Room:
         self._match_started_at = int(time.time())
         self.state = MATCH
         self.state_ends_at = now + self.settings.time_limit_min * 60
+        log.info("match_started", extra={"room": self.code, "players": len(self.connected)})
         for member in self.connected:
             self._respawn(member)
         self._send_room_state()

@@ -176,3 +176,19 @@ def test_out_of_range_settings_are_a_protocol_error(api: TestClient) -> None:
         ws.send_json({"t": "settings", "killLimit": 100000, "timeLimitMin": 3})
         receive(ws, "never")
     assert closed.value.code == CloseCode.BAD_MESSAGE
+
+
+def test_binary_frames_are_a_protocol_error(api: TestClient) -> None:
+    host = new_player(api)
+    code = new_room(api, host["token"])
+    with pytest.raises(WebSocketDisconnect) as closed, api.websocket_connect(f"/ws/{code}") as ws:
+        ws.send_bytes(b"\x00\x01garbage")
+        ws.receive_json()
+    assert closed.value.code == CloseCode.BAD_MESSAGE
+
+    with pytest.raises(WebSocketDisconnect) as closed, api.websocket_connect(f"/ws/{code}") as ws:
+        ws.send_json(hello(host["token"]))
+        receive(ws, "welcome")
+        ws.send_bytes(b"\xff" * 64)
+        receive(ws, "never")
+    assert closed.value.code == CloseCode.BAD_MESSAGE

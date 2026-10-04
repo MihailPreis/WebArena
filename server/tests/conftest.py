@@ -18,7 +18,9 @@ def db_path(tmp_path: Path) -> Path:
 @pytest.fixture
 def api(db_path: Path, tmp_path: Path) -> Iterator[TestClient]:
     """Client with a running app lifespan, i.e. with a connected database."""
-    settings = Settings(db_path=db_path, client_dist=tmp_path / "dist")
+    settings = Settings(
+        db_path=db_path, client_dist=tmp_path / "dist", profiles_per_minute=0, rooms_per_minute=0
+    )
     with TestClient(create_app(settings)) as client:
         yield client
 
