@@ -65,3 +65,11 @@ def test_settings_from_env() -> None:
     assert settings.db_path == Path("/data/arena.db")
     assert settings.host == "0.0.0.0"
     assert settings.client_dist == Settings().client_dist
+
+
+def test_large_responses_are_compressed(dist: Path, tmp_path: Path) -> None:
+    (dist / "assets" / "big.js").write_text("console.log('arena');\n" * 500)
+    client = TestClient(create_app(Settings(client_dist=dist, db_path=tmp_path / "arena.db")))
+    response = client.get("/assets/big.js", headers={"Accept-Encoding": "gzip"})
+    assert response.headers["content-encoding"] == "gzip"
+    assert "arena" in response.text

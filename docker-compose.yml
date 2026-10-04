@@ -1,0 +1,18 @@
+# Runs the game on http://localhost:8000.
+#
+# Builds the image from this checkout. To run the published image instead,
+# remove `build` and set `image: ghcr.io/mihailpreis/webarena:latest`.
+services:
+  arena:
+    build: .
+    image: arena:local
+    restart: unless-stopped
+    ports:
+      - '8000:8000'
+    volumes:
+      - arena-data:/data
+    # On stop the server ends running matches and saves their results.
+    stop_grace_period: 30s
+
+volumes:
+  arena-data:

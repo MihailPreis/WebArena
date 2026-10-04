@@ -1,0 +1,32 @@
+# Example deployment: the published image behind Caddy, which obtains an HTTPS
+# certificate on its own and proxies WebSocket connections without extra setup.
+#
+#   ARENA_DOMAIN=arena.example.com docker compose up -d
+#
+# The domain must point at this machine, and ports 80 and 443 must be reachable.
+services:
+  arena:
+    image: ghcr.io/mihailpreis/webarena:latest
+    restart: unless-stopped
+    volumes:
+      - arena-data:/data
+    # On stop the server ends running matches and saves their results.
+    stop_grace_period: 30s
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      ARENA_DOMAIN: ${ARENA_DOMAIN:?set ARENA_DOMAIN to your domain name}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  arena-data:
+  caddy-data:
+  caddy-config:

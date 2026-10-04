@@ -24,6 +24,8 @@ client/src/       клиент (main — главная, game — игра)
   game/net/       протокол, соединение, предсказание и интерполяция
   game/render/    весь визуал (Three.js); только читает состояние игры
 shared/           константы, карты и тестовые векторы, общие для клиента и сервера
+deploy/           пример развёртывания за Caddy с HTTPS
+.github/workflows ci.yml — проверки на pull request; publish.yml — образ в GHCR
 ```
 
 ## Команды
@@ -38,6 +40,7 @@ shared/           константы, карты и тестовые векто�
 | `make lint` | ruff, eslint, prettier, проверка типов |
 | `make format` | Автоформатирование |
 | `make build` | Сборка клиента в `client/dist` |
+| `docker compose up --build` | Собирает образ и запускает игру на http://localhost:8000, как в продакшене |
 | `make vectors` | Пересоздаёт `shared/movement_vectors.json` из клиентской симуляции и проверяет сервер |
 
 Перед тем как считать задачу выполненной, прогоняй `make lint` и `make test`.

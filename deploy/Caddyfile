@@ -1,0 +1,4 @@
+{$ARENA_DOMAIN} {
+	encode gzip
+	reverse_proxy arena:8000
+}

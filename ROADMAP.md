@@ -209,13 +209,13 @@ Dockerfile
 
 ### Этап 7. Docker и CI/CD
 
-- [ ] `Dockerfile`, multi-stage: сборка клиента в Node → итоговый образ на `python:3.13-slim` с сервером и статикой. Запуск не от root, `HEALTHCHECK` по `/healthz`.
-- [ ] База в volume (`/data/arena.db`); миграции применяются при старте.
-- [ ] `docker-compose.yml` для локального запуска и как пример развёртывания.
-- [ ] Workflow `ci.yml` на pull request: линтеры, pytest, vitest, сборка клиента, пробная сборка образа.
-- [ ] Workflow `publish.yml` на push в основную ветку и на теги `v*`: сборка и публикация в `ghcr.io/<owner>/arena` через `GITHUB_TOKEN` (права `packages: write`), теги `latest`, `sha-<commit>` и версия из тега, кеш слоёв.
-- [ ] В README: как запустить образ, какие переменные окружения и какой volume нужны.
-- [ ] Пример конфигурации обратного прокси с HTTPS и проксированием WebSocket (Caddy или nginx). HTTPS нужен на практике: без него часть браузерных API работает ограниченно.
+- [x] `Dockerfile`, multi-stage: сборка клиента в Node → итоговый образ на `python:3.13-slim` с сервером и статикой. Запуск не от root, `HEALTHCHECK` по `/healthz`.
+- [x] База в volume (`/data/arena.db`); миграции применяются при старте.
+- [x] `docker-compose.yml` для локального запуска; пример развёртывания за Caddy — в `deploy/`.
+- [x] Workflow `ci.yml` на pull request: линтеры, pytest, vitest, сборка клиента, пробная сборка образа.
+- [x] Workflow `publish.yml` на push в основную ветку и на теги `v*`: сборка и публикация в `ghcr.io/mihailpreis/webarena` через `GITHUB_TOKEN` (права `packages: write`), теги `latest`, `sha-<commit>` и версия из тега, кеш слоёв.
+- [x] В README: как запустить образ, какие переменные окружения и какой volume нужны.
+- [x] Пример конфигурации обратного прокси с HTTPS и проксированием WebSocket (Caddy). HTTPS нужен на практике: без него часть браузерных API работает ограниченно.
 
 **Готово, когда:** `docker run` образа из GHCR на чистой машине даёт рабочую игру, а push в основную ветку обновляет образ без ручных действий.
 
