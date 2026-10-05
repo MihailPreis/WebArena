@@ -10,6 +10,7 @@ from arena.game.room import (
     CHAT_PER_SECOND,
     INPUTS_PER_TICK,
     MAX_INPUT_BURST,
+    RESPAWN_DELAY_S,
     SNAPSHOT_INTERVAL,
     MatchSettings,
     Room,
@@ -159,15 +160,32 @@ def test_inputs_cannot_be_simulated_faster_than_real_time() -> None:
     assert member.ack == 100 + MAX_INPUT_BURST - 1
 
 
-def test_falling_out_of_the_world_respawns() -> None:
+def test_falling_off_the_map_is_a_death() -> None:
     room = make_room()
-    member = room.join(ALICE, FakeConn())
+    alice, bob = FakeConn(), FakeConn()
+    member = room.join(ALICE, alice)
+    room.join(BOB, bob)
+    room.tick()  # The match starts.
     state = member.state
     member.state = type(state)(
         (0.0, ARENA.kill_y - 1, 100.0), (0.0, 0.0, 0.0), 0.0, 0.0, False, False, False
     )
     room.receive_input(member, 0, IDLE, 0.0)
     room.tick()
+
+    assert member.alive is False
+    assert (member.kills, member.deaths) == (0, 1)
+    assert bob.last("event") == {
+        "t": "event",
+        "e": "kill",
+        "by": "a1",
+        "target": "a1",
+        "head": False,
+        "fall": True,
+    }
+    for _ in range(round(RESPAWN_DELAY_S / SNAPSHOT_INTERVAL) + 1):
+        room.tick()
+    assert member.alive is True
     assert member.state.pos in [spawn.position for spawn in ARENA.spawns]
 
 

@@ -9,7 +9,7 @@ dev:
 	$(MAKE) -j2 dev-server dev-client
 
 dev-server:
-	cd server && ARENA_RELOAD=1 uv run python -m arena
+	cd server && ARENA_RELOAD=1 ARENA_DEV_MAPS=1 uv run python -m arena
 
 dev-client:
 	cd client && npm run dev

@@ -16,6 +16,9 @@ import { FACE_SHADE } from './world';
 
 // A broken prop is back after this long, once nobody stands in its place.
 const RESTORE_S = 45;
+// A player knocks a prop over only when moving faster than this, in m/s: above a
+// plain run, so it takes a dash, a slide, a jump pad, a blast or a fall.
+const BREAK_SPEED = 10;
 
 export interface Broken {
   /** Middle of the prop. */
@@ -59,7 +62,7 @@ function partsGeometry(parts: PropPart[]): BufferGeometry | null {
 }
 
 /**
- * Decorative clutter. It breaks when shot, caught by a blast or run into, and is
+ * Decorative clutter. It breaks when shot, caught by a blast or run into at speed, and is
  * back after a while. Purely local: it stops neither bullets nor players, and the
  * server does not know it exists.
  */
@@ -134,19 +137,21 @@ export class Props {
   }
 
   /**
-   * Call every frame with the boxes of all players: they knock over what they run
-   * into, and nothing is put back where somebody stands.
+   * Call every frame with the boxes of all players and how fast each is moving, in
+   * m/s. Those who run into a prop at speed knock it over; at a walk or a run they
+   * pass through it. Nothing is put back where somebody stands.
    */
-  update(dt: number, players: readonly { min: Vec3; max: Vec3 }[]): void {
+  update(dt: number, players: readonly { min: Vec3; max: Vec3; speed: number }[]): void {
     for (const prop of this.props) {
-      const touched = players.some((box) =>
+      const touching = players.filter((box) =>
         box.min.every(
           (value, axis) =>
             value < (prop.max[axis] ?? 0) && (box.max[axis] ?? 0) > (prop.min[axis] ?? 0),
         ),
       );
+      const touched = touching.length > 0;
       if (prop.brokenFor === 0) {
-        if (touched) this.break(prop);
+        if (touching.some((box) => box.speed >= BREAK_SPEED)) this.break(prop);
         continue;
       }
       prop.brokenFor = Math.max(prop.brokenFor - dt, touched ? 0.5 : 0);

@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from arena.shared import PROFILE, ROOM
+from arena.shared import DEFAULT_MAP, DEV_MAPS, MAPS, PROFILE, ROOM
 
 _COLOR_RE = re.compile(r"#[0-9a-f]{6}")
 
@@ -76,8 +76,15 @@ _TIME_MIN, _TIME_MAX, _TIME_DEFAULT = _limit("timeLimitMin")
 _PLAYERS_MIN, _PLAYERS_MAX, _PLAYERS_DEFAULT = _limit("maxPlayers")
 
 
+def _known_map(value: str) -> str:
+    if value not in MAPS and value not in DEV_MAPS:
+        raise ValueError("unknown map")
+    return value
+
+
 class RoomSettings(ApiModel):
     mode: Literal["deathmatch", "team-deathmatch"] = "deathmatch"
+    map: Annotated[str, AfterValidator(_known_map)] = DEFAULT_MAP
     kill_limit: int = Field(_KILL_DEFAULT, ge=_KILL_MIN, le=_KILL_MAX)
     time_limit_min: int = Field(_TIME_DEFAULT, ge=_TIME_MIN, le=_TIME_MAX)
     max_players: int = Field(_PLAYERS_DEFAULT, ge=_PLAYERS_MIN, le=_PLAYERS_MAX)

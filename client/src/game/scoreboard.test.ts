@@ -70,7 +70,7 @@ function results(players: ScoreRow[], teams: Record<Team, number> | null): RoomS
     timeLeft: 10,
     hostId: 'Alice',
     teams,
-    settings: { mode: 'deathmatch', killLimit: 25, timeLimitMin: 10, maxPlayers: 8 },
+    settings: { mode: 'deathmatch', map: 'gate', killLimit: 25, timeLimitMin: 10, maxPlayers: 8 },
     players,
   };
 }

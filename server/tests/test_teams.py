@@ -177,18 +177,18 @@ def test_host_switches_the_mode_between_matches() -> None:
     room = Room("AB12", "p0", MatchSettings("deathmatch", 5, 1, 8), ARENA, float)
     members, conns = join(room, 4)
     room.tick()
-    room.change_settings(members[0], "team-deathmatch", 5, 1)
+    room.change_settings(members[0], "team-deathmatch", "arena", 5, 1)
     assert room.settings.mode == "deathmatch"  # Not during a match.
 
     room.finish_match()
-    room.change_settings(members[0], "team-deathmatch", 10, 2)
+    room.change_settings(members[0], "team-deathmatch", "arena", 10, 2)
     assert room.settings.mode == "team-deathmatch"
     assert [m.team for m in members] == ["blue", "red", "blue", "red"]
     state = conns[3].last("room")
     assert state["settings"]["mode"] == "team-deathmatch"
     assert state["teams"] == {"blue": 0, "red": 0}
 
-    room.change_settings(members[0], "deathmatch", 10, 2)
+    room.change_settings(members[0], "deathmatch", "arena", 10, 2)
     assert [m.team for m in members] == [None] * 4
 
 

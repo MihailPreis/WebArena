@@ -12,6 +12,7 @@ export interface Profile {
 
 export interface RoomSettings {
   mode: string;
+  map: string;
   killLimit: number;
   timeLimitMin: number;
   maxPlayers: number;

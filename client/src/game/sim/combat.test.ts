@@ -68,6 +68,8 @@ describe('rays', () => {
     blocks: [{ min: [-50, 0, -11], max: [50, 5, -10], material: 'wall' }],
     spawns: [],
     items: [],
+    pads: [],
+    teleporters: [],
     props: [],
   };
 

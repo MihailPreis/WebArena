@@ -9,6 +9,7 @@ import { Projectiles } from './projectiles';
 import { Props } from './props';
 import { buildSky } from './sky';
 import { Tracers, type TracerStyle } from './tracers';
+import { Triggers } from './triggers';
 import { buildWorld } from './world';
 
 // The scene is drawn at roughly this many rows and upscaled without smoothing.
@@ -19,6 +20,8 @@ const VERTICAL_FOV = 75;
 const MUZZLE_LIGHT = ['#ffd9a0', '#ffd9a0', '#ffb060', '#8fe6ff'];
 // How far below the camera the player's feet are taken to be, for knocking props over.
 const EYE_TO_FEET = PLAYER.standEyeHeight;
+// Nobody moves faster than this, in m/s; anything above is a change of place.
+const MAX_SPEED = 60;
 // How much wider the view gets at the peak of a dash, in degrees.
 const RUSH_FOV = 9;
 
@@ -95,6 +98,8 @@ export function createRenderer(
   scene.add(items.group);
   const projectiles = new Projectiles();
   scene.add(projectiles.group);
+  const triggers = new Triggers(map);
+  scene.add(triggers.group);
   // Even light that shows surfaces exactly as painted; flashes add to it.
   scene.add(new AmbientLight('#ffffff', Math.PI));
   const effects = new Effects(map);
@@ -107,6 +112,8 @@ export function createRenderer(
 
   const camera = new PerspectiveCamera(VERTICAL_FOV, 1, 0.05, 200);
   camera.rotation.order = 'YXZ';
+  // Where each player was on the previous frame; the local player goes by the empty id.
+  const lastSeen = new Map<string, Vec3>();
 
   function resize(): void {
     const width = Math.max(1, canvas.clientWidth);
@@ -183,23 +190,37 @@ export function createRenderer(
       tracers.update(dt);
       items.update(dt);
       projectiles.update(dt);
+      triggers.update(dt);
       effects.update(dt);
       const r = PLAYER.halfWidth;
       const feet = view.eye[1] - EYE_TO_FEET;
-      props.update(dt, [
-        {
-          min: [view.eye[0] - r, feet, view.eye[2] - r],
-          max: [view.eye[0] + r, view.eye[1], view.eye[2] + r],
-        },
-        ...players.map(({ pos, crouched }) => ({
-          min: [pos[0] - r, pos[1], pos[2] - r] as Vec3,
-          max: [
-            pos[0] + r,
-            pos[1] + (crouched ? PLAYER.crouchHeight : PLAYER.standHeight),
-            pos[2] + r,
-          ] as Vec3,
+      const bodies = [
+        { id: '', pos: [view.eye[0], feet, view.eye[2]] as Vec3, height: EYE_TO_FEET },
+        ...players.map(({ id, pos, crouched }) => ({
+          id,
+          pos,
+          height: crouched ? PLAYER.crouchHeight : PLAYER.standHeight,
         })),
-      ]);
+      ];
+      props.update(
+        dt,
+        bodies.map(({ id, pos, height }) => {
+          // Speed is taken from how far the player has moved since the last frame.
+          const before = lastSeen.get(id);
+          const moved = before
+            ? Math.hypot(...pos.map((value, axis) => value - (before[axis] ?? 0)))
+            : 0;
+          const speed = dt > 0 ? moved / dt : 0;
+          return {
+            min: [pos[0] - r, pos[1], pos[2] - r] as Vec3,
+            max: [pos[0] + r, pos[1] + height, pos[2] + r] as Vec3,
+            // A jump across the map is a respawn or a teleporter, not a charge.
+            speed: speed > MAX_SPEED ? 0 : speed,
+          };
+        }),
+      );
+      lastSeen.clear();
+      for (const { id, pos } of bodies) lastSeen.set(id, pos);
       camera.position.set(view.eye[0], view.eye[1], view.eye[2]);
       camera.rotation.set(view.pitch, view.yaw, 0);
       sky.position.copy(camera.position);

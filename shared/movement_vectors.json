@@ -1878,6 +1878,161 @@
           "dash": 0
         }
       ]
+    },
+    {
+      "name": "jump pad throws onto the crates",
+      "start": {
+        "pos": [18.75, 0, 12],
+        "yawDeg": 0
+      },
+      "segments": [
+        {
+          "ticks": 20,
+          "cmd": {
+            "forward": 0,
+            "right": 0,
+            "jump": false,
+            "crouch": false,
+            "dash": false,
+            "yawDeg": 0,
+            "pitch": 0
+          }
+        },
+        {
+          "ticks": 24,
+          "cmd": {
+            "forward": 1,
+            "right": 0,
+            "jump": false,
+            "crouch": false,
+            "dash": false,
+            "yawDeg": 0,
+            "pitch": 0
+          }
+        },
+        {
+          "ticks": 30,
+          "cmd": {
+            "forward": 0,
+            "right": 0,
+            "jump": false,
+            "crouch": false,
+            "dash": false,
+            "yawDeg": 0,
+            "pitch": 0
+          }
+        },
+        {
+          "ticks": 40,
+          "cmd": {
+            "forward": 0,
+            "right": 0,
+            "jump": false,
+            "crouch": false,
+            "dash": false,
+            "yawDeg": 0,
+            "pitch": 0
+          }
+        }
+      ],
+      "expect": [
+        {
+          "pos": [18.75, 0, 12],
+          "vel": [0, 0, 0],
+          "onGround": true,
+          "crouched": false,
+          "dash": 0
+        },
+        {
+          "pos": [18.125, 0.8555555555555554, 9.75275053948082],
+          "vel": [-7.5, 9.666666666666664, -0.9],
+          "onGround": false,
+          "crouched": false,
+          "dash": 0
+        },
+        {
+          "pos": [14.375, 3.1055555555555543, 9.302750539480803],
+          "vel": [-7.5, -0.333333333333335, -0.9],
+          "onGround": false,
+          "crouched": false,
+          "dash": 0
+        },
+        {
+          "pos": [10.85276917345529, 2, 8.880082840295428],
+          "vel": [-1.0365956864442678, 0, -0.12439148237331218],
+          "onGround": true,
+          "crouched": false,
+          "dash": 0
+        }
+      ]
+    },
+    {
+      "name": "teleporter carries the pace across the map",
+      "start": {
+        "pos": [-15, 0, -16],
+        "yawDeg": 90
+      },
+      "segments": [
+        {
+          "ticks": 20,
+          "cmd": {
+            "forward": 0,
+            "right": 0,
+            "jump": false,
+            "crouch": false,
+            "dash": false,
+            "yawDeg": 90,
+            "pitch": 0
+          }
+        },
+        {
+          "ticks": 40,
+          "cmd": {
+            "forward": 1,
+            "right": 0,
+            "jump": false,
+            "crouch": false,
+            "dash": false,
+            "yawDeg": 90,
+            "pitch": 0
+          }
+        },
+        {
+          "ticks": 10,
+          "cmd": {
+            "forward": 1,
+            "right": 0,
+            "jump": false,
+            "crouch": false,
+            "dash": false,
+            "yawDeg": 0,
+            "pitch": 0
+          }
+        }
+      ],
+      "expect": [
+        {
+          "pos": [-15, 0, -16],
+          "vel": [0, 0, 0],
+          "onGround": true,
+          "crouched": false,
+          "dash": 0
+        },
+        {
+          "pos": [15.457092394579924, 0, 16.35],
+          "vel": [-8.956867606799571, 0, 0],
+          "onGround": true,
+          "crouched": false,
+          "dash": 0
+        },
+        {
+          "pos": [14.502878888355255, 0, 16.35],
+          "vel": [-3.7520666637559095, 0, 0],
+          "onGround": true,
+          "crouched": false,
+          "dash": 0
+        }
+      ]
     }
   ]
 }

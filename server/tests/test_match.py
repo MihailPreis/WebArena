@@ -14,7 +14,7 @@ from arena.game.room import (
     Member,
     Room,
 )
-from arena.game.weapon import WeaponState
+from arena.game.weapon import WeaponState, give_weapon
 from tests.conftest import FakeConn
 from tests.test_combat import RANGE, cmd, standing
 
@@ -195,24 +195,24 @@ def test_only_the_host_changes_settings_and_only_between_matches() -> None:
     alice_conn = FakeConn()
     alice = room.join(ALICE, alice_conn)
 
-    room.change_settings(alice, "deathmatch", 30, 5)
+    room.change_settings(alice, "deathmatch", "arena", 30, 5)
     assert (room.settings.kill_limit, room.settings.time_limit_min) == (30, 5)
     assert alice_conn.last("room")["settings"]["killLimit"] == 30
 
     bob = room.join(BOB, FakeConn())
-    room.change_settings(bob, "deathmatch", 99, 9)
+    room.change_settings(bob, "deathmatch", "arena", 99, 9)
     assert room.settings.kill_limit == 30
 
     room.tick()
     assert room.state == MATCH
     assert alice_conn.last("room")["timeLeft"] == 300
-    room.change_settings(alice, "deathmatch", 10, 2)
+    room.change_settings(alice, "deathmatch", "arena", 10, 2)
     assert room.settings.kill_limit == 30
 
     score(room, alice, bob, 30)
     room.tick()
     assert room.state == RESULTS
-    room.change_settings(alice, "deathmatch", 10, 2)
+    room.change_settings(alice, "deathmatch", "arena", 10, 2)
     assert (room.settings.kill_limit, room.settings.time_limit_min) == (10, 2)
 
 
@@ -241,3 +241,23 @@ def test_room_state_is_refreshed_periodically_with_pings() -> None:
     states = [m for m in conn.sent if m["t"] == "room"]
     assert len(states) == before + 1
     assert states[-1]["players"][0]["ping"] == 42
+
+
+def test_host_changes_the_map_between_matches() -> None:
+    settings = MatchSettings("deathmatch", 25, 10, 8)
+    room = Room("AB12", ALICE.id, settings, load_map("arena"), float, maps=("arena", "gate"))
+    conn = FakeConn()
+    alice = room.join(ALICE, conn)
+    alice.weapon = give_weapon(alice.weapon, 1) or alice.weapon
+
+    room.change_settings(alice, "deathmatch", "yard", 25, 10)  # Not offered here.
+    assert room.map.name == "arena"
+
+    room.change_settings(alice, "deathmatch", "gate", 25, 10)
+    gate = load_map("gate")
+    assert room.map is gate
+    assert conn.last("room")["settings"]["map"] == "gate"
+    assert alice.state.pos in [spawn.position for spawn in gate.spawns]
+    assert len(room.item_back_at) == len(gate.items)
+    # A rejoining client is told the new map and loads it.
+    assert room.join(ALICE, FakeConn()) is alice

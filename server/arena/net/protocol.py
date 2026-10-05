@@ -81,6 +81,8 @@ class SettingsMsg(_ClientModel):
 
     t: Literal["settings"]
     mode: Literal["deathmatch", "team-deathmatch"]
+    # The room ignores a map it may not be played on.
+    map: str = Field(max_length=32)
     killLimit: int = Field(ge=ROOM["killLimit"]["min"], le=ROOM["killLimit"]["max"])
     timeLimitMin: int = Field(ge=ROOM["timeLimitMin"]["min"], le=ROOM["timeLimitMin"]["max"])
 

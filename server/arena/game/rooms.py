@@ -5,7 +5,7 @@ import string
 import time
 from collections.abc import Callable
 
-from arena.game.map import GameMap
+from arena.game.map import load_map
 from arena.game.results import MatchResult
 from arena.game.room import MatchSettings, Room
 
@@ -25,23 +25,32 @@ class RoomRegistry:
 
     def __init__(
         self,
-        game_map: GameMap,
+        maps: tuple[str, ...],
         empty_ttl_s: float,
         clock: Callable[[], float] = time.monotonic,
         on_match_end: Callable[[MatchResult], None] | None = None,
     ) -> None:
-        self._map = game_map
+        self.maps = maps
+        """Names of the maps rooms may be played on."""
         self._empty_ttl_s = empty_ttl_s
         self._clock = clock
         self._on_match_end = on_match_end
         self._rooms: dict[str, Room] = {}
 
-    def create(self, host_id: str, settings: MatchSettings) -> Room:
+    def create(self, host_id: str, map_name: str, settings: MatchSettings) -> Room:
         self._sweep()
         for _ in range(_CODE_ATTEMPTS):
             code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
             if code not in self._rooms:
-                room = Room(code, host_id, settings, self._map, self._clock, self._on_match_end)
+                room = Room(
+                    code,
+                    host_id,
+                    settings,
+                    load_map(map_name),
+                    self._clock,
+                    self._on_match_end,
+                    self.maps,
+                )
                 self._rooms[code] = room
                 log.info("room_created", extra={"room": code, "rooms": len(self._rooms)})
                 return room

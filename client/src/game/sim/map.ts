@@ -21,6 +21,26 @@ export interface MapItem {
   position: Vec3;
 }
 
+/** A volume that throws whoever touches it. */
+export interface JumpPad {
+  min: Vec3;
+  max: Vec3;
+  /** The velocity the player leaves with, in metres per second. */
+  velocity: Vec3;
+}
+
+/** A volume that moves whoever touches it somewhere else. */
+export interface Teleporter {
+  min: Vec3;
+  max: Vec3;
+  /** Where the player's feet end up. */
+  to: Vec3;
+  /** Radians; the way the player faces and keeps moving on arrival. */
+  yaw: number;
+  /** Unit vector of `yaw`. */
+  direction: Vec3;
+}
+
 /** Decoration: it has no part in the simulation, and the server ignores it. */
 export interface MapProp {
   /** What it is; how that looks is up to the renderer. */
@@ -37,6 +57,8 @@ export interface GameMap {
   blocks: Block[];
   spawns: Spawn[];
   items: MapItem[];
+  pads: JumpPad[];
+  teleporters: Teleporter[];
   props: MapProp[];
 }
 
@@ -58,12 +80,23 @@ function parseVec3(value: unknown, where: string): Vec3 {
   return [x as number, y as number, z as number];
 }
 
+function parseBox(raw: Record<string, unknown>, where: string): { min: Vec3; max: Vec3 } {
+  const min = parseVec3(raw.min, `${where}.min`);
+  const max = parseVec3(raw.max, `${where}.max`);
+  if (min.some((value, axis) => value >= (max[axis] ?? value))) {
+    throw new Error(`${where}: min must be below max on every axis`);
+  }
+  return { min, max };
+}
+
 /** Validates raw map JSON (see shared/README.md) and converts it to the runtime form. */
 export function parseMap(raw: unknown): GameMap {
   if (!isRecord(raw)) throw new Error('map: expected an object');
   const { name, killY, blocks, spawns } = raw;
   const items = raw.items ?? [];
   const props = raw.props ?? [];
+  const pads = raw.jumpPads ?? [];
+  const teleporters = raw.teleporters ?? [];
   if (typeof name !== 'string') throw new Error('map.name: expected a string');
   if (typeof killY !== 'number') throw new Error('map.killY: expected a number');
   if (!Array.isArray(blocks)) throw new Error('map.blocks: expected an array');
@@ -72,6 +105,8 @@ export function parseMap(raw: unknown): GameMap {
   }
   if (!Array.isArray(items)) throw new Error('map.items: expected an array');
   if (!Array.isArray(props)) throw new Error('map.props: expected an array');
+  if (!Array.isArray(pads)) throw new Error('map.jumpPads: expected an array');
+  if (!Array.isArray(teleporters)) throw new Error('map.teleporters: expected an array');
 
   return {
     name,
@@ -79,11 +114,7 @@ export function parseMap(raw: unknown): GameMap {
     blocks: blocks.map((block: unknown, i): Block => {
       const where = `map.blocks[${i}]`;
       if (!isRecord(block)) throw new Error(`${where}: expected an object`);
-      const min = parseVec3(block.min, `${where}.min`);
-      const max = parseVec3(block.max, `${where}.max`);
-      if (min.some((value, axis) => value >= (max[axis] ?? value))) {
-        throw new Error(`${where}: min must be below max on every axis`);
-      }
+      const { min, max } = parseBox(block, where);
       if (typeof block.material !== 'string') {
         throw new Error(`${where}.material: expected a string`);
       }
@@ -105,6 +136,23 @@ export function parseMap(raw: unknown): GameMap {
         throw new Error(`${where}.type: unknown item`);
       }
       return { type: item.type, position: parseVec3(item.position, `${where}.position`) };
+    }),
+    pads: pads.map((pad: unknown, i): JumpPad => {
+      const where = `map.jumpPads[${i}]`;
+      if (!isRecord(pad)) throw new Error(`${where}: expected an object`);
+      return { ...parseBox(pad, where), velocity: parseVec3(pad.velocity, `${where}.velocity`) };
+    }),
+    teleporters: teleporters.map((gate: unknown, i): Teleporter => {
+      const where = `map.teleporters[${i}]`;
+      if (!isRecord(gate)) throw new Error(`${where}: expected an object`);
+      if (typeof gate.yawDeg !== 'number') throw new Error(`${where}.yawDeg: expected a number`);
+      const yaw = (gate.yawDeg * Math.PI) / 180;
+      return {
+        ...parseBox(gate, where),
+        to: parseVec3(gate.to, `${where}.to`),
+        yaw,
+        direction: [-Math.sin(yaw), 0, -Math.cos(yaw)],
+      };
     }),
     props: props.map((prop: unknown, i): MapProp => {
       const where = `map.props[${i}]`;

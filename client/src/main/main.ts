@@ -13,7 +13,7 @@ import {
   type Profile,
 } from '../shared/api';
 import { isRoomCode } from '../shared/roomCode';
-import { modeName } from '../shared/roomText';
+import { availableMaps, mapName, modeName } from '../shared/roomText';
 import { ensureSession, type Session } from '../shared/session';
 
 const { profile: PROFILE, room: ROOM } = constants;
@@ -49,6 +49,8 @@ function setupLimit(id: string, limit: { min: number; max: number; default: numb
 
 const modeSelect = element<HTMLSelectElement>('mode');
 for (const mode of ROOM.modes) modeSelect.add(new Option(modeName(mode), mode));
+const mapSelect = element<HTMLSelectElement>('map');
+for (const map of availableMaps()) mapSelect.add(new Option(mapName(map), map));
 const killLimit = setupLimit('kill-limit', ROOM.killLimit);
 const timeLimit = setupLimit('time-limit', ROOM.timeLimitMin);
 const maxPlayers = setupLimit('max-players', ROOM.maxPlayers);
@@ -125,6 +127,7 @@ function setupRooms(session: Session): void {
     createButton.disabled = true;
     createRoom(session.token, {
       mode: modeSelect.value,
+      map: mapSelect.value,
       killLimit: killLimit.valueAsNumber,
       timeLimitMin: timeLimit.valueAsNumber,
       maxPlayers: maxPlayers.valueAsNumber,

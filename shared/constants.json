@@ -42,6 +42,8 @@
   },
   "room": {
     "modes": ["deathmatch", "team-deathmatch"],
+    "maps": ["yard", "grounds", "gate"],
+    "devMaps": ["arena"],
     "killLimit": {
       "min": 5,
       "max": 100,
@@ -59,7 +61,7 @@
     }
   },
   "net": {
-    "protocolVersion": 7,
+    "protocolVersion": 8,
     "snapshotRate": 30,
     "interpolationDelayMs": 100,
     "maxInputBurst": 20,

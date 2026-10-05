@@ -79,6 +79,18 @@ export class GameAudio {
     this.tone(at, { from: 90, to: 28, duration: 0.55, volume: 0.9, type: 'sine' });
   }
 
+  /** A jump pad has thrown the player. */
+  jumpPad(): void {
+    this.tone(null, { from: 160, to: 620, duration: 0.22, volume: 0.35, type: 'sine' });
+    this.burst(null, { volume: 0.3, duration: 0.2, filter: 1200 });
+  }
+
+  /** The player has gone through a teleporter. */
+  teleport(): void {
+    this.tone(null, { from: 900, to: 140, duration: 0.35, volume: 0.35, type: 'sawtooth' });
+    this.tone(null, { from: 300, to: 1400, duration: 0.3, volume: 0.2, type: 'sine' });
+  }
+
   /** A piece of decoration has fallen apart. */
   debris(at: Vec3): void {
     this.burst(at, { volume: 0.9, duration: 0.28, filter: 1500 });

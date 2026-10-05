@@ -2,7 +2,6 @@ import asyncio
 import dataclasses
 import logging
 import math
-import random
 import time
 import unicodedata
 from collections import deque
@@ -22,7 +21,7 @@ from arena.game.combat import (
     trace_shot,
 )
 from arena.game.items import AMMO, ARMOR, HEALTH, ITEM_TYPES, PICKUP_RADIUS, WEAPON, ItemSpec
-from arena.game.map import GameMap, Vec3
+from arena.game.map import GameMap, Vec3, load_map
 from arena.game.modes import MODES, TEAMS
 from arena.game.movement import (
     TICK_DT,
@@ -182,11 +181,14 @@ class Room:
         game_map: GameMap,
         clock: Callable[[], float],
         on_match_end: Callable[[MatchResult], None] | None = None,
+        maps: tuple[str, ...] = (),
     ) -> None:
         self.code = code
         self.host_id = host_id
         self.settings = settings
         self.map = game_map
+        # Names of the maps the host may switch to.
+        self._maps = maps
         self.mode = MODES[settings.mode]
         self.members: dict[str, Member] = {}
         self.tick_no = 0
@@ -288,11 +290,19 @@ class Room:
         )
 
     def change_settings(
-        self, member: Member, mode: str, kill_limit: int, time_limit_min: int
+        self, member: Member, mode: str, map_name: str, kill_limit: int, time_limit_min: int
     ) -> None:
-        """Lets the host change the rules, but only between matches."""
+        """Lets the host change the rules and the map, but only between matches."""
         if member.player.id != self.host_id or self.state == MATCH:
             return
+        if map_name != self.map.name and map_name in self._maps:
+            # Clients load the new map when they see its name in the room state.
+            self.map = load_map(map_name)
+            self.item_back_at = [0.0] * len(self.map.items)
+            self.rockets.clear()
+            for m in self.connected:
+                self._respawn(m)
+            log.info("map_changed", extra={"room": self.code, "map": map_name})
         if mode != self.settings.mode:
             self.mode = MODES[mode]
             # Deal the sides afresh, in order of arrival, so they come out even.
@@ -367,7 +377,8 @@ class Room:
                 cmd = queued.cmd
                 member.state = step_player(member.state, cmd, self.map, TICK_DT)
                 if member.state.pos[1] < self.map.kill_y:
-                    member.state = create_player(random.choice(self.map.spawns))
+                    self._fall(member)
+                    continue
                 member.weapon, fired = step_weapon(member.weapon, cmd.fire, cmd.weapon)
                 if fired:
                     self._fire(member, cmd, queued.render_time)
@@ -571,9 +582,30 @@ class Room:
                     "by": attacker.player.id,
                     "target": target.player.id,
                     "head": head,
+                    "fall": False,
                 }
             )
         return True
+
+    def _fall(self, member: Member) -> None:
+        """The player has fallen off the map: a death by their own hand."""
+        member.alive = False
+        member.hp = 0
+        member.respawn_at = self.time + RESPAWN_DELAY_S
+        member.quad_until = 0.0
+        member.history.clear()
+        if self.state == MATCH:
+            self.mode.record_suicide(member)
+        self._broadcast(
+            {
+                "t": "event",
+                "e": "kill",
+                "by": member.player.id,
+                "target": member.player.id,
+                "head": False,
+                "fall": True,
+            }
+        )
 
     def _step_rockets(self) -> None:
         now = self.time
@@ -793,6 +825,7 @@ class Room:
                 "teams": self.mode.team_scores(list(self.members.values())),
                 "settings": {
                     "mode": self.settings.mode,
+                    "map": self.map.name,
                     "killLimit": self.settings.kill_limit,
                     "timeLimitMin": self.settings.time_limit_min,
                     "maxPlayers": self.settings.max_players,

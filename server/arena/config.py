@@ -24,6 +24,8 @@ class Settings:
     ws_max_per_ip: int = 16
     # Addresses of reverse proxies whose X-Forwarded-For header is trusted ("*" for any).
     trusted_proxies: str = "127.0.0.1"
+    # Offer the small test maps as well; meant for development.
+    dev_maps: bool = False
     log_json: bool = False
     reload: bool = False
 
@@ -49,6 +51,7 @@ class Settings:
             rooms_per_minute=float(env.get("ARENA_ROOMS_PER_MINUTE", defaults.rooms_per_minute)),
             ws_max_per_ip=int(env.get("ARENA_WS_MAX_PER_IP", defaults.ws_max_per_ip)),
             trusted_proxies=env.get("ARENA_TRUSTED_PROXIES", defaults.trusted_proxies),
+            dev_maps=env.get("ARENA_DEV_MAPS", "") == "1",
             log_json=env.get("ARENA_LOG_JSON", "") == "1",
             reload=env.get("ARENA_RELOAD", "") == "1",
         )

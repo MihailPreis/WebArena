@@ -74,6 +74,11 @@
     { "type": "rockets", "position": [17, 0, 5] },
     { "type": "slugs", "position": [-17, 0, -10] }
   ],
+  "jumpPads": [{ "min": [18, 0, 8], "max": [19.5, 0.3, 9.5], "velocity": [-7.5, 11, 0] }],
+  "teleporters": [
+    { "min": [-19.8, 0, -16.5], "max": [-18.8, 2, -15.5], "to": [16.5, 0, 17.5], "yawDeg": 0 },
+    { "min": [18.8, 0, 15.5], "max": [19.8, 2, 16.5], "to": [-16.5, 0, -17.5], "yawDeg": 180 }
+  ],
   "props": [
     { "type": "barrel", "position": [-10.8, 0, -11], "yawDeg": 0 },
     { "type": "barrel", "position": [-10.8, 0, -10.2], "yawDeg": 20 },

@@ -101,7 +101,9 @@ async def _read(websocket: WebSocket, room: Room, member: Member, conn: WsConnec
             member.ping = message.rtt
             conn.send(encode({"t": "pong", "id": message.id}))
         elif isinstance(message, SettingsMsg):
-            room.change_settings(member, message.mode, message.killLimit, message.timeLimitMin)
+            room.change_settings(
+                member, message.mode, message.map, message.killLimit, message.timeLimitMin
+            )
         elif isinstance(message, ChatMsg):
             room.chat(member, message.text)
         else:

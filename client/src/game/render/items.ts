@@ -1,6 +1,14 @@
 // Things lying on the map: placeholder pixel art painted in code, like the players.
 import constants from '@shared/constants.json';
-import { Group, Sprite, SpriteMaterial } from 'three';
+import {
+  AdditiveBlending,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  PlaneGeometry,
+  Sprite,
+  SpriteMaterial,
+} from 'three';
 import type { MapItem } from '../sim/map';
 import { QUAD_COLOR, WEAPON_COLORS } from './colors';
 import { pixelTexture } from './players';
@@ -11,6 +19,15 @@ const WIDTH = 0.75;
 const HOVER = 0.35;
 const BOB = 0.1;
 const BOB_RATE = 2.4;
+// The glow behind an item and the ring under it, relative to the item's width.
+const HALO_SCALE = 2.3;
+const RING_SCALE = 1.5;
+// Colour of the glow for the kinds that are not tied to a weapon.
+const KIND_COLORS: Record<string, string> = {
+  health: '#ff5a4d',
+  armor: '#ffcf5a',
+  quad: QUAD_COLOR,
+};
 
 const TYPES: Record<string, { kind: string; weapon: number; amount: number }> =
   constants.items.types;
@@ -89,38 +106,98 @@ function paint(type: string): HTMLCanvasElement {
   return canvas;
 }
 
+/** A soft round blob, or with `hollow` a ring, in coarse white pixels to be tinted. */
+function paintGlow(hollow: boolean): HTMLCanvasElement {
+  const size = 16;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('2D canvas is not available');
+  ctx.fillStyle = '#ffffff';
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const distance = Math.hypot(x + 0.5 - size / 2, y + 0.5 - size / 2) / (size / 2);
+      const alpha = hollow ? 1 - Math.abs(distance - 0.8) * 6 : 1 - distance;
+      ctx.globalAlpha = Math.min(Math.max(alpha, 0), 1);
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  return canvas;
+}
+
 /** Items of the map as camera-facing sprites; those picked up are hidden until they return. */
 export class ItemSprites {
   readonly group = new Group();
-  private readonly sprites: { sprite: Sprite; y: number }[];
+  private readonly items: { sprite: Sprite; halo: Sprite; ring: Mesh; y: number }[];
+  // One material per colour, so that all the glows of a colour pulse together.
+  private readonly glows = new Map<string, { halo: SpriteMaterial; ring: MeshBasicMaterial }>();
+  private readonly haloMap = pixelTexture(paintGlow(false));
+  private readonly ringMap = pixelTexture(paintGlow(true));
+  private readonly plane = new PlaneGeometry(1, 1);
   private time = 0;
 
   constructor(items: readonly MapItem[]) {
-    this.sprites = items.map((item) => {
+    this.items = items.map((item) => {
+      const spec = TYPES[item.type];
       const sprite = new Sprite(
         new SpriteMaterial({ map: pixelTexture(paint(item.type)), alphaTest: 0.5 }),
       );
-      const scale = TYPES[item.type]?.kind === 'quad' ? WIDTH * 1.3 : WIDTH;
+      const scale = spec?.kind === 'quad' ? WIDTH * 1.3 : WIDTH;
+      const [x, y, z] = item.position;
       sprite.center.set(0.5, 0);
       sprite.scale.set(scale, scale, 1);
-      sprite.position.set(item.position[0], item.position[1] + HOVER, item.position[2]);
-      this.group.add(sprite);
-      return { sprite, y: item.position[1] + HOVER };
+      sprite.position.set(x, y + HOVER, z);
+
+      // A glow behind the item and a ring on the floor under it set pickups apart
+      // from the clutter of the map.
+      const color = KIND_COLORS[spec?.kind ?? ''] ?? WEAPON_COLORS[spec?.weapon ?? 0] ?? '#ffffff';
+      const glow = this.glow(color);
+      const halo = new Sprite(glow.halo);
+      halo.scale.set(scale * HALO_SCALE, scale * HALO_SCALE, 1);
+      halo.position.set(x, y + HOVER + scale / 2, z);
+      const ring = new Mesh(this.plane, glow.ring);
+      ring.rotation.x = -Math.PI / 2;
+      ring.scale.set(scale * RING_SCALE, scale * RING_SCALE, 1);
+      ring.position.set(x, y + 0.03, z);
+
+      this.group.add(halo, ring, sprite);
+      return { sprite, halo, ring, y: y + HOVER };
     });
   }
 
   /** Bit `i` of `mask` is set while item `i` is there to be picked up. */
   setPresent(mask: number): void {
-    this.sprites.forEach(({ sprite }, index) => {
-      sprite.visible = ((mask >> index) & 1) === 1;
+    this.items.forEach(({ sprite, halo, ring }, index) => {
+      sprite.visible = halo.visible = ring.visible = ((mask >> index) & 1) === 1;
     });
   }
 
   update(dt: number): void {
     this.time += dt;
-    this.sprites.forEach(({ sprite, y }, index) => {
+    this.items.forEach(({ sprite, halo, y }, index) => {
       // The index puts neighbours out of step.
-      sprite.position.y = y + Math.sin(this.time * BOB_RATE + index) * BOB;
+      const lift = Math.sin(this.time * BOB_RATE + index) * BOB;
+      sprite.position.y = y + lift;
+      halo.position.y = y + lift + sprite.scale.y / 2;
     });
+    const pulse = 0.5 + 0.5 * Math.sin(this.time * 3);
+    for (const { halo, ring } of this.glows.values()) {
+      halo.opacity = 0.3 + 0.15 * pulse;
+      ring.opacity = 0.45 + 0.3 * pulse;
+    }
+  }
+
+  private glow(color: string): { halo: SpriteMaterial; ring: MeshBasicMaterial } {
+    let glow = this.glows.get(color);
+    if (!glow) {
+      const shared = { color, transparent: true, blending: AdditiveBlending, depthWrite: false };
+      glow = {
+        halo: new SpriteMaterial({ ...shared, map: this.haloMap, fog: false }),
+        ring: new MeshBasicMaterial({ ...shared, map: this.ringMap }),
+      };
+      this.glows.set(color, glow);
+    }
+    return glow;
   }
 }

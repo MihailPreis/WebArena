@@ -1,12 +1,12 @@
-import arenaJson from '@shared/maps/arena.json';
 import { describe, expect, it } from 'vitest';
 import { overlapsAny } from '../sim/collision';
-import { parseMap, type Vec3 } from '../sim/map';
+import { loadMap, MAP_FILES } from '../maps';
+import type { Vec3 } from '../sim/map';
 import { PROP_MODELS } from './propModels';
 
-const arena = parseMap(arenaJson);
+describe.each(MAP_FILES)('props of the map %s', (name) => {
+  const arena = loadMap(name);
 
-describe('props of the arena', () => {
   it('are all of a known type', () => {
     expect(arena.props.length).toBeGreaterThan(0);
     for (const prop of arena.props) expect(Object.keys(PROP_MODELS)).toContain(prop.type);

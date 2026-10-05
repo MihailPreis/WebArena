@@ -2,11 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { isRoomFull } from './api';
 import { describeSettings } from './roomText';
 
-const settings = { mode: 'deathmatch', killLimit: 25, timeLimitMin: 10, maxPlayers: 8 };
+const settings = {
+  mode: 'deathmatch',
+  map: 'gate',
+  killLimit: 25,
+  timeLimitMin: 10,
+  maxPlayers: 8,
+};
 
 describe('describeSettings', () => {
   it('summarises match settings', () => {
-    expect(describeSettings(settings)).toBe('Deathmatch · до 25 убийств · 10 мин · до 8 игроков');
+    expect(describeSettings(settings)).toBe(
+      'Deathmatch · Ворота · до 25 убийств · 10 мин · до 8 игроков',
+    );
   });
 
   it('names the team mode', () => {

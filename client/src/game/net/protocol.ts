@@ -96,8 +96,11 @@ export type EventMsg =
   | { t: 'event'; e: 'pickup'; id: string; item: number }
   /** Sent to the attacker and the target only; `from` is where the damage came from. */
   | { t: 'event'; e: 'hit'; by: string; target: string; dmg: number; head: boolean; from: Vec3 }
-  /** `by` equals `target` when a player died by their own rocket. */
-  | { t: 'event'; e: 'kill'; by: string; target: string; head: boolean }
+  /**
+   * `by` equals `target` when a player died by their own hand: by their own rocket,
+   * or, with `fall`, by falling off the map.
+   */
+  | { t: 'event'; e: 'kill'; by: string; target: string; head: boolean; fall: boolean }
   | { t: 'event'; e: 'spawn'; id: string; yaw: number }
   /** A player switched sides. */
   | { t: 'event'; e: 'team'; id: string; team: Team }
@@ -124,7 +127,13 @@ export interface RoomStateMsg {
   hostId: string;
   /** Score of each team; null when the mode has no teams. */
   teams: Record<Team, number> | null;
-  settings: { mode: string; killLimit: number; timeLimitMin: number; maxPlayers: number };
+  settings: {
+    mode: string;
+    map: string;
+    killLimit: number;
+    timeLimitMin: number;
+    maxPlayers: number;
+  };
   /** Ordered from first place to last. */
   players: ScoreRow[];
 }
@@ -155,7 +164,7 @@ export type ClientMessage =
       rt: number;
     }
   | { t: 'ping'; id: number; rtt: number }
-  | { t: 'settings'; mode: string; killLimit: number; timeLimitMin: number }
+  | { t: 'settings'; mode: string; map: string; killLimit: number; timeLimitMin: number }
   | { t: 'team'; team: Team }
   | { t: 'chat'; text: string };
 

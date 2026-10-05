@@ -267,7 +267,7 @@ def test_kill_death_and_respawn() -> None:
 
     assert duel.bob.alive is False
     assert (duel.alice.kills, duel.bob.deaths) == (1, 1)
-    kill = {"t": "event", "e": "kill", "by": "a1", "target": "b2", "head": False}
+    kill = {"t": "event", "e": "kill", "by": "a1", "target": "b2", "head": False, "fall": False}
     assert duel.events(duel.alice_conn, "kill") == [kill]
     assert duel.events(duel.bob_conn, "kill") == [kill]
     # The dead are not drawn and cannot be hit or act.
@@ -455,7 +455,7 @@ def test_blowing_yourself_up_is_a_death_without_a_kill() -> None:
     duel.wait(0.1)
     assert duel.alice.alive is False
     assert (duel.alice.kills, duel.alice.deaths) == (0, 1)
-    kill = {"t": "event", "e": "kill", "by": "a1", "target": "a1", "head": False}
+    kill = {"t": "event", "e": "kill", "by": "a1", "target": "a1", "head": False, "fall": False}
     assert duel.events(duel.bob_conn, "kill") == [kill]
 
 

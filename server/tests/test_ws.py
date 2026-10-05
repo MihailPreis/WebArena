@@ -191,9 +191,18 @@ def test_ping_report_and_host_settings(api: TestClient) -> None:
 
         ws.send_json({"t": "ping", "id": 1, "rtt": 57})
         receive(ws, "pong")
-        ws.send_json({"t": "settings", "mode": "deathmatch", "killLimit": 40, "timeLimitMin": 3})
+        ws.send_json(
+            {
+                "t": "settings",
+                "mode": "deathmatch",
+                "map": "gate",
+                "killLimit": 40,
+                "timeLimitMin": 3,
+            }
+        )
         state = receive(ws, "room")
         assert state["settings"]["killLimit"] == 40
+        assert state["settings"]["map"] == "gate"
         assert state["players"][0]["ping"] == 57
         assert api.get(f"/api/rooms/{code}").json()["settings"]["timeLimitMin"] == 3
 
@@ -205,7 +214,13 @@ def test_out_of_range_settings_are_a_protocol_error(api: TestClient) -> None:
         ws.send_json(hello(host["token"]))
         receive(ws, "welcome")
         ws.send_json(
-            {"t": "settings", "mode": "deathmatch", "killLimit": 100000, "timeLimitMin": 3}
+            {
+                "t": "settings",
+                "mode": "deathmatch",
+                "map": "gate",
+                "killLimit": 100000,
+                "timeLimitMin": 3,
+            }
         )
         receive(ws, "never")
     assert closed.value.code == CloseCode.BAD_MESSAGE

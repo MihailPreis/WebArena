@@ -157,6 +157,17 @@ function travelled(from: Vec3, to: Vec3): number {
   return Math.sqrt(dx * dx + dz * dz);
 }
 
+function touches(min: Vec3, max: Vec3, boxMin: Vec3, boxMax: Vec3): boolean {
+  return (
+    min[0] < boxMax[0] &&
+    max[0] > boxMin[0] &&
+    min[1] < boxMax[1] &&
+    max[1] > boxMin[1] &&
+    min[2] < boxMax[2] &&
+    max[2] > boxMin[2]
+  );
+}
+
 /** Advances the player by one fixed tick. Pure: returns a new state. */
 export function stepPlayer(
   prev: PlayerState,
@@ -256,6 +267,30 @@ export function stepPlayer(
       pos[1] += drop;
       vel[1] = 0;
       onGround = true;
+    }
+  }
+
+  // Jump pads and teleporters act on whoever ends the tick inside them.
+  [min, max] = bounds(pos, height);
+  for (const pad of map.pads) {
+    if (touches(min, max, pad.min, pad.max)) {
+      vel[0] = pad.velocity[0];
+      vel[1] = pad.velocity[1];
+      vel[2] = pad.velocity[2];
+      onGround = false;
+      break;
+    }
+  }
+  for (const gate of map.teleporters) {
+    if (touches(min, max, gate.min, gate.max)) {
+      // The player comes out facing the exit and keeps their pace.
+      const speed = Math.sqrt(vel[0] * vel[0] + vel[2] * vel[2]);
+      pos = [...gate.to];
+      vel[0] = gate.direction[0] * speed;
+      vel[1] = 0;
+      vel[2] = gate.direction[2] * speed;
+      onGround = false;
+      break;
     }
   }
 

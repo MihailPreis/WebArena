@@ -18,10 +18,29 @@ export function modeName(mode: string): string {
   return MODE_NAMES[mode] ?? mode;
 }
 
+const MAP_NAMES: Record<string, string> = {
+  yard: 'Двор над бездной',
+  grounds: 'Плац',
+  gate: 'Ворота',
+  arena: 'Арена (тестовая)',
+};
+
+export function mapName(map: string): string {
+  return MAP_NAMES[map] ?? map;
+}
+
+/** Maps a room can be created on. The small test maps are offered in development only. */
+export function availableMaps(): string[] {
+  return import.meta.env.DEV
+    ? [...constants.room.maps, ...constants.room.devMaps]
+    : constants.room.maps;
+}
+
 /** One-line summary of match settings, e.g. for the room menu. */
 export function describeSettings(settings: RoomSettings): string {
   return [
     modeName(settings.mode),
+    mapName(settings.map),
     `до ${settings.killLimit} убийств`,
     `${settings.timeLimitMin} мин`,
     `до ${settings.maxPlayers} игроков`,

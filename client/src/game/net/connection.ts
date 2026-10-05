@@ -77,9 +77,9 @@ export class Connection {
     this.send(inputMessage(seq, cmd, renderTime));
   }
 
-  /** Asks the server to change the rules; it only obeys the host, between matches. */
-  sendSettings(mode: string, killLimit: number, timeLimitMin: number): void {
-    this.send({ t: 'settings', mode, killLimit, timeLimitMin });
+  /** Asks the server to change the rules and the map; it only obeys the host, between matches. */
+  sendSettings(mode: string, map: string, killLimit: number, timeLimitMin: number): void {
+    this.send({ t: 'settings', mode, map, killLimit, timeLimitMin });
   }
 
   /** Asks to switch sides; the server refuses if that would unbalance the teams. */

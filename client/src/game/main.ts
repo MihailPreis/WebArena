@@ -1,16 +1,24 @@
 import '../style.css';
 import './game.css';
-import arenaJson from '@shared/maps/arena.json';
 import constants from '@shared/constants.json';
 import { ApiError, getRoom, isRoomFull, type RoomInfo } from '../shared/api';
 import { roomCodeFromPath } from '../shared/roomCode';
-import { describeSettings, modeName, TEAM_COLORS, TEAM_NAMES, type Team } from '../shared/roomText';
+import {
+  availableMaps,
+  describeSettings,
+  mapName,
+  modeName,
+  TEAM_COLORS,
+  TEAM_NAMES,
+  type Team,
+} from '../shared/roomText';
 import { ensureSession, type Session } from '../shared/session';
 import { GameAudio } from './audio';
 import { Chat } from './chat';
 import { Hud, type MatchSide, type NamedPlayer, type TeammateTag } from './hud';
 import { Input } from './input';
 import { itemKind, itemLabel } from './labels';
+import { loadMap } from './maps';
 import { Menu } from './menu';
 import { Connection } from './net/connection';
 import { RemoteInterpolator } from './net/interpolation';
@@ -40,7 +48,7 @@ import {
 } from './settings';
 import { PLAYER, TICK_DT } from './sim/constants';
 import { FixedStep } from './sim/fixedStep';
-import { parseMap, type Vec3 } from './sim/map';
+import type { Vec3 } from './sim/map';
 import { dashReadiness, type InputCmd } from './sim/movement';
 import { aimDirection, pelletDirections, shotEnd } from './sim/ray';
 import { usable, WEAPONS, type WeaponState } from './sim/weapon';
@@ -253,7 +261,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
   const slider = element<HTMLInputElement>('sensitivity');
   const sliderValue = element('sensitivity-value');
 
-  const map = parseMap(arenaJson);
+  const map = loadMap(welcome.map);
   const audio = new GameAudio();
   const renderer = createRenderer(canvas, map, (pos) => audio.debris(pos));
   window.addEventListener('resize', () => renderer.resize());
@@ -294,10 +302,14 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
   hostTimeLimit.max = String(constants.room.timeLimitMin.max);
   const hostMode = element<HTMLSelectElement>('host-mode');
   for (const mode of constants.room.modes) hostMode.add(new Option(modeName(mode), mode));
+  const hostMap = element<HTMLSelectElement>('host-map');
+  for (const name of availableMaps()) hostMap.add(new Option(mapName(name), name));
+  hostMap.value = welcome.map;
   hostForm.addEventListener('submit', (event) => {
     event.preventDefault();
     connection.sendSettings(
       hostMode.value,
+      hostMap.value,
       hostKillLimit.valueAsNumber,
       hostTimeLimit.valueAsNumber,
     );
@@ -480,6 +492,26 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     }
   }
 
+  /** Notices that the tick just simulated ended on a jump pad or went through a teleporter. */
+  function triggers(): void {
+    const now = prediction.current;
+    const before = prediction.previous;
+    const same = (a: Vec3, b: Vec3) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+    // A teleporter puts the player exactly on its exit.
+    const gate = map.teleporters.find((g) => same(now.pos, g.to) && !same(before.pos, g.to));
+    if (gate) {
+      // Face the way out, and do not draw the camera flying across the map.
+      input.yaw = gate.yaw;
+      prediction.previous = now;
+      view.reset();
+      audio.teleport();
+    } else if (
+      map.pads.some((pad) => now.vel[1] === pad.velocity[1] && before.vel[1] !== pad.velocity[1])
+    ) {
+      audio.jumpPad();
+    }
+  }
+
   function remoteFootsteps(): void {
     for (const other of others) {
       const track = remoteSteps.get(other.id);
@@ -571,6 +603,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
         audio.dash(null);
       }
       footsteps();
+      triggers();
     }
     remoteFootsteps();
 
@@ -655,6 +688,12 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
       view.nudge(prediction.reconcile(snapshot.you, snapshot.status, snapshot.ack));
     },
     handleRoomState(state: RoomStateMsg): void {
+      if (state.settings.map !== map.name) {
+        // The host has picked another map. The world, the prediction and the renderer
+        // are all built around the map, so start afresh; the server keeps the seat.
+        window.location.reload();
+        return;
+      }
       const previous = roomState;
       roomState = state;
       roomStateAt = performance.now();
@@ -662,7 +701,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
       const isHost = state.hostId === myId;
       const editable = state.state !== 'match';
       menu.setHost(isHost);
-      hostMode.disabled = !editable;
+      hostMode.disabled = hostMap.disabled = !editable;
       hostKillLimit.disabled = hostTimeLimit.disabled = hostApply.disabled = !editable;
       hostNote.textContent = editable
         ? 'Изменения действуют со следующего матча.'
@@ -748,11 +787,13 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
             event.target === myId
               ? prediction.current.pos
               : others.find((other) => other.id === event.target)?.pos;
-          if (fallen) renderer.gore(fallen);
+          // Nobody sees what becomes of those who fall off the map.
+          if (fallen && !event.fall) renderer.gore(fallen);
           if (event.by === event.target) {
-            hud.addNotice(lookup(event.target), 'подорвался на своей ракете');
+            const how = event.fall ? 'сорвался с карты' : 'подорвался на своей ракете';
+            hud.addNotice(lookup(event.target), how);
             if (event.target === myId) {
-              deathCause = 'Вы подорвались на своей ракете';
+              deathCause = event.fall ? 'Вы сорвались с карты' : 'Вы подорвались на своей ракете';
               diedAt = performance.now();
             }
             audio.death(others.find((other) => other.id === event.target)?.pos ?? null);
@@ -808,6 +849,10 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     },
     /** Continues on a new connection: the server has put the player back into the room. */
     rejoin(again: WelcomeMsg, newConnection: Connection): void {
+      if (again.map !== map.name) {
+        window.location.reload();
+        return;
+      }
       connection = newConnection;
       prediction = new Prediction(map, again.you, again.status);
       remotes = new RemoteInterpolator(INTERPOLATION_DELAY_S);

@@ -160,6 +160,19 @@ def _travelled(start: Sequence[float], end: Sequence[float]) -> float:
     return math.sqrt(dx * dx + dz * dz)
 
 
+def _touches(
+    lo: Sequence[float], hi: Sequence[float], box_min: Sequence[float], box_max: Sequence[float]
+) -> bool:
+    return (
+        lo[0] < box_max[0]
+        and hi[0] > box_min[0]
+        and lo[1] < box_max[1]
+        and hi[1] > box_min[1]
+        and lo[2] < box_max[2]
+        and hi[2] > box_min[2]
+    )
+
+
 def step_player(prev: PlayerState, cmd: InputCmd, game_map: GameMap, dt: float) -> PlayerState:
     """Advances the player by one fixed tick. Pure: returns a new state."""
     blocks = game_map.blocks
@@ -251,6 +264,22 @@ def step_player(prev: PlayerState, cmd: InputCmd, game_map: GameMap, dt: float) 
             pos[1] += drop
             vel[1] = 0.0
             on_ground = True
+
+    # Jump pads and teleporters act on whoever ends the tick inside them.
+    lo, hi = _bounds(pos, height)
+    for pad in game_map.pads:
+        if _touches(lo, hi, pad.min, pad.max):
+            vel = list(pad.velocity)
+            on_ground = False
+            break
+    for gate in game_map.teleporters:
+        if _touches(lo, hi, gate.min, gate.max):
+            # The player comes out facing the exit and keeps their pace.
+            speed = math.sqrt(vel[0] * vel[0] + vel[2] * vel[2])
+            pos = list(gate.to)
+            vel = [gate.direction[0] * speed, 0.0, gate.direction[2] * speed]
+            on_ground = False
+            break
 
     return PlayerState(
         pos=(pos[0], pos[1], pos[2]),

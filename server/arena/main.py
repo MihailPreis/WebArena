@@ -15,11 +15,11 @@ from arena.api import leaderboard, players, rooms
 from arena.config import Settings
 from arena.db.database import Database
 from arena.db.stats import save_match
-from arena.game.map import load_map
 from arena.game.results import MatchResult
 from arena.game.rooms import RoomRegistry
 from arena.net import ws
 from arena.ratelimit import RateLimiter
+from arena.shared import allowed_maps
 
 ROOM_CODE_RE = re.compile(r"[A-Z0-9]{4}")
 
@@ -73,7 +73,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         task.add_done_callback(saves.discard)
 
     app.state.rooms = RoomRegistry(
-        load_map("arena"), empty_ttl_s=settings.room_empty_ttl_s, on_match_end=on_match_end
+        allowed_maps(settings.dev_maps),
+        empty_ttl_s=settings.room_empty_ttl_s,
+        on_match_end=on_match_end,
     )
     app.include_router(players.router)
     app.include_router(rooms.router)
