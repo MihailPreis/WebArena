@@ -254,11 +254,11 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
   const sliderValue = element('sensitivity-value');
 
   const map = parseMap(arenaJson);
-  const renderer = createRenderer(canvas, map);
+  const audio = new GameAudio();
+  const renderer = createRenderer(canvas, map, (pos) => audio.debris(pos));
   window.addEventListener('resize', () => renderer.resize());
   const viewmodel = createViewmodel(element<HTMLCanvasElement>('viewmodel'));
   const hud = new Hud();
-  const audio = new GameAudio();
 
   let sensitivity = loadSensitivity();
   slider.min = String(SENSITIVITY_MIN);
@@ -438,7 +438,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
 
   function tracerStyle(weapon: number, shooter: string) {
     if (weapon !== RAILGUN) return undefined;
-    return { color: appearance(shooter).color, life: RAIL_TRAIL_S };
+    return { color: appearance(shooter).color, life: RAIL_TRAIL_S, trail: true, power: 3 };
   }
 
   function fire(cmd: InputCmd): void {
@@ -446,18 +446,21 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     const spec = WEAPONS[weapon];
     if (!spec) return;
     const origin = eyeOf(prediction.current.pos, prediction.current.crouched);
+    // The tip of the barrel as drawn on screen, not the point between the eyes.
+    const barrel = viewmodel.muzzle();
+    const muzzle = renderer.screenToWorld(barrel.x, barrel.y, MUZZLE_DISTANCE);
+    // Bullets and shells leave a spent case, thrown to the right.
+    const cased = spec.kind === 'hitscan' && weapon !== RAILGUN;
+    renderer.muzzleFlash(muzzle, weapon, cased ? [Math.cos(cmd.yaw), 0, -Math.sin(cmd.yaw)] : null);
     if (spec.kind === 'projectile') {
       const direction = aimDirection(cmd.yaw, cmd.pitch);
       const key = --lastRocketKey;
       unconfirmed.push({ key, at: performance.now() });
       renderer.launchRocket(key, origin, direction, flight(origin, direction), ROCKET_SKIP);
     } else {
-      // Start the tracers at the tip of the barrel as drawn on screen, not between the eyes.
-      const barrel = viewmodel.muzzle();
-      const muzzle = renderer.screenToWorld(barrel.x, barrel.y, MUZZLE_DISTANCE);
       const style = tracerStyle(weapon, myId);
       for (const direction of pelletDirections(cmd.yaw, cmd.pitch, spec.pellets, spec.spread)) {
-        renderer.addTracer(muzzle, shotEnd(map, origin, direction, others), style);
+        renderer.addShot(muzzle, shotEnd(map, origin, direction, others), style);
       }
     }
     viewmodel.fire();
@@ -683,7 +686,8 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
         case 'shot': {
           const from: Vec3 = [event.from[0], event.from[1] - 0.14, event.from[2]];
           const style = tracerStyle(event.w, event.id);
-          for (const to of event.to) renderer.addTracer(from, to, style);
+          for (const to of event.to) renderer.addShot(from, to, style);
+          renderer.muzzleFlash(event.from, event.w, null);
           audio.shot(event.from, event.w);
           break;
         }
@@ -698,6 +702,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
             }
           } else {
             audio.shot(event.from, ROCKET_LAUNCHER);
+            renderer.muzzleFlash(event.from, ROCKET_LAUNCHER, null);
           }
           renderer.launchRocket(event.n, event.from, event.dir, flight(event.from, event.dir));
           break;
@@ -738,7 +743,12 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
             audio.hurt();
           }
           break;
-        case 'kill':
+        case 'kill': {
+          const fallen =
+            event.target === myId
+              ? prediction.current.pos
+              : others.find((other) => other.id === event.target)?.pos;
+          if (fallen) renderer.gore(fallen);
           if (event.by === event.target) {
             hud.addNotice(lookup(event.target), 'подорвался на своей ракете');
             if (event.target === myId) {
@@ -764,6 +774,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
             if (event.by === myId) hud.hitMarker(true);
           }
           break;
+        }
         case 'team': {
           // The roster still holds the old side; show the new one.
           const player = appearance(event.id);

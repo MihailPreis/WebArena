@@ -21,12 +21,23 @@ export interface MapItem {
   position: Vec3;
 }
 
+/** Decoration: it has no part in the simulation, and the server ignores it. */
+export interface MapProp {
+  /** What it is; how that looks is up to the renderer. */
+  type: string;
+  /** The point on the floor it stands on. */
+  position: Vec3;
+  /** Radians. */
+  yaw: number;
+}
+
 export interface GameMap {
   name: string;
   killY: number;
   blocks: Block[];
   spawns: Spawn[];
   items: MapItem[];
+  props: MapProp[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -52,6 +63,7 @@ export function parseMap(raw: unknown): GameMap {
   if (!isRecord(raw)) throw new Error('map: expected an object');
   const { name, killY, blocks, spawns } = raw;
   const items = raw.items ?? [];
+  const props = raw.props ?? [];
   if (typeof name !== 'string') throw new Error('map.name: expected a string');
   if (typeof killY !== 'number') throw new Error('map.killY: expected a number');
   if (!Array.isArray(blocks)) throw new Error('map.blocks: expected an array');
@@ -59,6 +71,7 @@ export function parseMap(raw: unknown): GameMap {
     throw new Error('map.spawns: expected a non-empty array');
   }
   if (!Array.isArray(items)) throw new Error('map.items: expected an array');
+  if (!Array.isArray(props)) throw new Error('map.props: expected an array');
 
   return {
     name,
@@ -92,6 +105,18 @@ export function parseMap(raw: unknown): GameMap {
         throw new Error(`${where}.type: unknown item`);
       }
       return { type: item.type, position: parseVec3(item.position, `${where}.position`) };
+    }),
+    props: props.map((prop: unknown, i): MapProp => {
+      const where = `map.props[${i}]`;
+      if (!isRecord(prop)) throw new Error(`${where}: expected an object`);
+      if (typeof prop.type !== 'string') throw new Error(`${where}.type: expected a string`);
+      const yawDeg = prop.yawDeg ?? 0;
+      if (typeof yawDeg !== 'number') throw new Error(`${where}.yawDeg: expected a number`);
+      return {
+        type: prop.type,
+        position: parseVec3(prop.position, `${where}.position`),
+        yaw: (yawDeg * Math.PI) / 180,
+      };
     }),
   };
 }

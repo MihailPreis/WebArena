@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GameMap } from './map';
-import { aimDirection, pelletDirections, rayBox, shotEnd, WEAPON_RANGE } from './ray';
+import { aimDirection, pelletDirections, rayBox, shotEnd, surfaceAt, WEAPON_RANGE } from './ray';
 import {
   createWeapon,
   stepWeapon,
@@ -68,6 +68,7 @@ describe('rays', () => {
     blocks: [{ min: [-50, 0, -11], max: [50, 5, -10], material: 'wall' }],
     spawns: [],
     items: [],
+    props: [],
   };
 
   it('aims along -z at yaw 0 and up with positive pitch', () => {
@@ -103,5 +104,15 @@ describe('rays', () => {
     // The same numbers as server/tests/test_combat.py gets from `pellet_directions`.
     expect(pellets[1]?.[0]).toBeCloseTo(-0.2636249628, 9);
     expect(pellets[10]?.[1]).toBeCloseTo(-0.1981843724, 9);
+  });
+
+  it('tells which face of the map a shot stopped on', () => {
+    const end = shotEnd(map, [2, 1, 0], [0, 0, -1], []);
+    const surface = surfaceAt(map, end);
+    expect(surface?.normal).toEqual([0, 0, 1]);
+    expect(surface?.block.material).toBe('wall');
+    // One metre up a wall five metres high: the floor edge is the nearest.
+    expect(surface?.room).toBeCloseTo(1);
+    expect(surfaceAt(map, [0, 1, -5])).toBeNull();
   });
 });

@@ -16,7 +16,7 @@ import {
 const FLOOR: Block = { min: [-50, -1, -50], max: [50, 0, 50], material: 'floor' };
 
 function makeMap(...blocks: Block[]): GameMap {
-  return { name: 'test', killY: -20, blocks: [FLOOR, ...blocks], spawns: [], items: [] };
+  return { name: 'test', killY: -20, blocks: [FLOOR, ...blocks], spawns: [], items: [], props: [] };
 }
 
 function spawnAt(position: Vec3, map: GameMap): PlayerState {

@@ -79,6 +79,12 @@ export class GameAudio {
     this.tone(at, { from: 90, to: 28, duration: 0.55, volume: 0.9, type: 'sine' });
   }
 
+  /** A piece of decoration has fallen apart. */
+  debris(at: Vec3): void {
+    this.burst(at, { volume: 0.9, duration: 0.28, filter: 1500 });
+    this.tone(at, { from: 320, to: 110, duration: 0.12, volume: 0.3, type: 'triangle' });
+  }
+
   /** Somebody took an item; `kind` is `weapon`, `ammo`, `health`, `armor` or `quad`. */
   pickup(at: Vec3 | null, kind: string): void {
     const volume = at ? 0.5 : 0.3;

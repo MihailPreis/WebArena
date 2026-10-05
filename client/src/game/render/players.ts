@@ -1,4 +1,12 @@
-import { CanvasTexture, Group, NearestFilter, Sprite, SpriteMaterial, SRGBColorSpace } from 'three';
+import {
+  AdditiveBlending,
+  CanvasTexture,
+  Group,
+  NearestFilter,
+  Sprite,
+  SpriteMaterial,
+  SRGBColorSpace,
+} from 'three';
 import { PLAYER } from '../sim/constants';
 import type { Vec3 } from '../sim/map';
 import { QUAD_COLOR } from './colors';
@@ -36,6 +44,8 @@ interface Entry {
   accent: string | null;
   body: Sprite;
   tag: Sprite;
+  /** A glow around a player who carries the damage booster. */
+  aura: Sprite;
   /** Seconds until the next ghost may be left behind. */
   ghostIn: number;
 }
@@ -54,11 +64,36 @@ export function pixelTexture(canvas: HTMLCanvasElement): CanvasTexture {
   return texture;
 }
 
+/** A soft blob of the booster's colour, in coarse pixels. */
+function paintAura(): HTMLCanvasElement {
+  const size = 16;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('2D canvas is not available');
+  ctx.fillStyle = QUAD_COLOR;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const distance = Math.hypot(x + 0.5 - size / 2, y + 0.5 - size / 2) / (size / 2);
+      ctx.globalAlpha = Math.max(1 - distance, 0) * 0.9;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  return canvas;
+}
+
 /** Other players, drawn as camera-facing sprites that show the side the camera sees. */
 export class PlayerSprites {
   readonly group = new Group();
   private readonly entries = new Map<string, Entry>();
   private readonly ghosts: Ghost[] = [];
+  private readonly auraMaterial = new SpriteMaterial({
+    map: pixelTexture(paintAura()),
+    blending: AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+  });
 
   /** `dt` is the time since the previous frame, in seconds. */
   update(players: readonly RenderPlayer[], camera: Vec3, dt: number): void {
@@ -88,9 +123,10 @@ export class PlayerSprites {
       const frame = ((turns % FRAME_COUNT) + FRAME_COUNT) % FRAME_COUNT;
       entry.body.material.map?.offset.set(frame / FRAME_COUNT, player.crouched ? 0 : 0.5);
       entry.body.position.set(x, y, z);
-      entry.body.material.color.set(player.quad ? QUAD_COLOR : '#ffffff');
 
       const height = player.crouched ? PLAYER.crouchHeight : PLAYER.standHeight;
+      entry.aura.position.set(x, y + height / 2, z);
+      entry.aura.visible = player.quad;
       entry.tag.position.set(x, y + height + NAME_GAP, z);
       entry.tag.visible = player.nameTag;
 
@@ -117,8 +153,20 @@ export class PlayerSprites {
     tag.center.set(0.5, 0);
     tag.scale.set((NAME_HEIGHT * tagCanvas.width) / tagCanvas.height, NAME_HEIGHT, 1);
 
-    this.group.add(body, tag);
-    return { name: player.name, color: player.color, accent: player.accent, body, tag, ghostIn: 0 };
+    const aura = new Sprite(this.auraMaterial);
+    aura.scale.set(SPRITE_WIDTH * 2.2, PLAYER.standHeight * 1.35, 1);
+    aura.visible = false;
+
+    this.group.add(body, tag, aura);
+    return {
+      name: player.name,
+      color: player.color,
+      accent: player.accent,
+      body,
+      tag,
+      aura,
+      ghostIn: 0,
+    };
   }
 
   /** A copy of the sprite as it looks right now, which stays in place and fades out. */
@@ -158,6 +206,8 @@ export class PlayerSprites {
       sprite.material.map?.dispose();
       sprite.material.dispose();
     }
+    // The aura's material is shared by all players.
+    this.group.remove(entry.aura);
     this.entries.delete(id);
   }
 }

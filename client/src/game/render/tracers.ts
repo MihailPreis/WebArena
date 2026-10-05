@@ -7,6 +7,10 @@ export interface TracerStyle {
   color: string;
   /** Seconds the line stays visible. */
   life: number;
+  /** Leaves glowing motes along the line, as a rail does. */
+  trail?: boolean;
+  /** How hard it hits what it stops at, 1 for a bullet. */
+  power?: number;
 }
 
 interface Tracer {

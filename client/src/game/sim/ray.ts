@@ -2,7 +2,7 @@
 // what was actually hit; see server/arena/game/combat.py.
 import constants from '@shared/constants.json';
 import { PLAYER } from './constants';
-import type { GameMap, Vec3 } from './map';
+import type { Block, GameMap, Vec3 } from './map';
 
 export const WEAPON_RANGE = constants.combat.range;
 
@@ -95,4 +95,45 @@ export function shotEnd(
     origin[1] + direction[1] * nearest,
     origin[2] + direction[2] * nearest,
   ];
+}
+
+export interface Surface {
+  block: Block;
+  /** Unit vector pointing out of the face. */
+  normal: Vec3;
+  /** Distance from the point to the nearest edge of the face, in metres. */
+  room: number;
+}
+
+// How far off a face a point may be and still count as lying on it.
+const SURFACE_EPSILON = 0.01;
+
+/** The face of the map that `point` lies on, e.g. where a shot stopped; null in the open. */
+export function surfaceAt(map: GameMap, point: Vec3): Surface | null {
+  const e = SURFACE_EPSILON;
+  for (const block of map.blocks) {
+    const { min, max } = block;
+    const inside = ([0, 1, 2] as const).every(
+      (axis) => point[axis] >= min[axis] - e && point[axis] <= max[axis] + e,
+    );
+    if (!inside) continue;
+    for (const axis of [0, 1, 2] as const) {
+      const sign =
+        Math.abs(point[axis] - max[axis]) <= e
+          ? 1
+          : Math.abs(point[axis] - min[axis]) <= e
+            ? -1
+            : 0;
+      if (sign === 0) continue;
+      const normal: Vec3 = [0, 0, 0];
+      normal[axis] = sign;
+      const room = Math.min(
+        ...([0, 1, 2] as const)
+          .filter((other) => other !== axis)
+          .map((other) => Math.min(point[other] - min[other], max[other] - point[other])),
+      );
+      return { block, normal, room: Math.max(room, 0) };
+    }
+  }
+  return null;
 }

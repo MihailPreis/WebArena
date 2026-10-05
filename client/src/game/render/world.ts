@@ -1,9 +1,10 @@
-import { BoxGeometry, BufferAttribute, Group, Mesh, MeshBasicMaterial } from 'three';
+import { BoxGeometry, BufferAttribute, Group, Mesh, MeshLambertMaterial } from 'three';
 import type { Block, GameMap } from '../sim/map';
 import { createMaterialLooks } from './textures';
 
-// Fixed brightness per box face (+x, -x, +y, -y, +z, -z) instead of real lighting.
-const FACE_SHADE = [0.8, 0.8, 1, 0.5, 0.62, 0.62];
+// Fixed brightness per box face (+x, -x, +y, -y, +z, -z). The scene's even ambient
+// light shows exactly this; flashes of shots and blasts add to it.
+export const FACE_SHADE = [0.8, 0.8, 1, 0.5, 0.62, 0.62];
 
 function blockGeometry(block: Block, tile: number): BoxGeometry {
   const sx = block.max[0] - block.min[0];
@@ -34,14 +35,14 @@ function blockGeometry(block: Block, tile: number): BoxGeometry {
 
 export function buildWorld(map: GameMap): Group {
   const looks = createMaterialLooks();
-  const materials = new Map<string, MeshBasicMaterial>();
+  const materials = new Map<string, MeshLambertMaterial>();
   const group = new Group();
 
   for (const block of map.blocks) {
     const look = looks(block.material);
     let material = materials.get(block.material);
     if (!material) {
-      material = new MeshBasicMaterial({ map: look.texture, vertexColors: true });
+      material = new MeshLambertMaterial({ map: look.texture, vertexColors: true });
       materials.set(block.material, material);
     }
     const mesh = new Mesh(blockGeometry(block, look.tile), material);

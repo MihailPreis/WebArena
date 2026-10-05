@@ -1,8 +1,12 @@
-import { Color, Fog, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
+import { AmbientLight, Color, Fog, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
+import constants from '@shared/constants.json';
+import { PLAYER } from '../sim/constants';
 import type { GameMap, Vec3 } from '../sim/map';
+import { Effects } from './effects';
 import { ItemSprites } from './items';
 import { PlayerSprites, type RenderPlayer } from './players';
 import { Projectiles } from './projectiles';
+import { Props } from './props';
 import { buildSky } from './sky';
 import { Tracers, type TracerStyle } from './tracers';
 import { buildWorld } from './world';
@@ -11,6 +15,10 @@ import { buildWorld } from './world';
 const TARGET_HEIGHT = 400;
 const FOG_COLOR = '#3a2440';
 const VERTICAL_FOV = 75;
+// Colour of the light a shot throws around, by weapon; the rail's is cold.
+const MUZZLE_LIGHT = ['#ffd9a0', '#ffd9a0', '#ffb060', '#8fe6ff'];
+// How far below the camera the player's feet are taken to be, for knocking props over.
+const EYE_TO_FEET = PLAYER.standEyeHeight;
 // How much wider the view gets at the peak of a dash, in degrees.
 const RUSH_FOV = 9;
 
@@ -25,8 +33,18 @@ export interface View {
 export interface GameRenderer {
   /** `dt` is the time since the previous frame, in seconds. */
   render(view: View, players: readonly RenderPlayer[], dt: number): void;
-  /** Shows the path of a shot for a moment. */
-  addTracer(from: Vec3, to: Vec3, style?: TracerStyle): void;
+  /**
+   * Shows a shot that flew from `from` and stopped at `to`: its path, the mark it
+   * left and what it knocked over on the way.
+   */
+  addShot(from: Vec3, to: Vec3, style?: TracerStyle): void;
+  /**
+   * Lights up the place a weapon fired from. `right` is the shooter's right-hand
+   * direction, if a spent case should fly out that way.
+   */
+  muzzleFlash(pos: Vec3, weapon: number, right: Vec3 | null): void;
+  /** A player has died at `pos` (their feet). */
+  gore(pos: Vec3): void;
   /** Bit `i` of `mask` is set while item `i` of the map is there to be picked up. */
   setItems(mask: number): void;
   /**
@@ -51,8 +69,15 @@ export interface GameRenderer {
   resize(): void;
 }
 
-/** Everything visual lives behind this interface; it only reads game state. */
-export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRenderer {
+/**
+ * Everything visual lives behind this interface; it only reads game state.
+ * `onPropBroken` is told where a piece of decoration fell apart, for the sound of it.
+ */
+export function createRenderer(
+  canvas: HTMLCanvasElement,
+  map: GameMap,
+  onPropBroken?: (pos: Vec3) => void,
+): GameRenderer {
   const renderer = new WebGLRenderer({ canvas, antialias: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(1);
 
@@ -70,6 +95,15 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
   scene.add(items.group);
   const projectiles = new Projectiles();
   scene.add(projectiles.group);
+  // Even light that shows surfaces exactly as painted; flashes add to it.
+  scene.add(new AmbientLight('#ffffff', Math.PI));
+  const effects = new Effects(map);
+  scene.add(effects.group);
+  const props = new Props(map.props, (broken) => {
+    effects.shatter(broken.pos, broken.colors, broken.size);
+    onPropBroken?.(broken.pos);
+  });
+  scene.add(props.group);
 
   const camera = new PerspectiveCamera(VERTICAL_FOV, 1, 0.05, 200);
   camera.rotation.order = 'YXZ';
@@ -92,8 +126,17 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
 
   return {
     resize,
-    addTracer(from, to, style) {
+    addShot(from, to, style) {
       tracers.add(from, to, style);
+      if (style?.trail) effects.trail(from, to, style.color);
+      effects.impact(from, to, style?.power);
+      props.hitSegment(from, to);
+    },
+    muzzleFlash(pos, weapon, right) {
+      effects.muzzle(pos, MUZZLE_LIGHT[weapon] ?? '#ffd9a0', right);
+    },
+    gore(pos) {
+      effects.gore(pos);
     },
     setItems(mask) {
       items.setPresent(mask);
@@ -106,6 +149,8 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
     },
     explode(key, pos) {
       projectiles.explode(key, pos);
+      effects.blast(pos);
+      props.hitSphere(pos, constants.rocket.splashRadius);
     },
     screenToWorld(x, y, distance) {
       const rect = canvas.getBoundingClientRect();
@@ -138,6 +183,23 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
       tracers.update(dt);
       items.update(dt);
       projectiles.update(dt);
+      effects.update(dt);
+      const r = PLAYER.halfWidth;
+      const feet = view.eye[1] - EYE_TO_FEET;
+      props.update(dt, [
+        {
+          min: [view.eye[0] - r, feet, view.eye[2] - r],
+          max: [view.eye[0] + r, view.eye[1], view.eye[2] + r],
+        },
+        ...players.map(({ pos, crouched }) => ({
+          min: [pos[0] - r, pos[1], pos[2] - r] as Vec3,
+          max: [
+            pos[0] + r,
+            pos[1] + (crouched ? PLAYER.crouchHeight : PLAYER.standHeight),
+            pos[2] + r,
+          ] as Vec3,
+        })),
+      ]);
       camera.position.set(view.eye[0], view.eye[1], view.eye[2]);
       camera.rotation.set(view.pitch, view.yaw, 0);
       sky.position.copy(camera.position);
