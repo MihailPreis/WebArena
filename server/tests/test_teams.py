@@ -21,7 +21,7 @@ from arena.game.room import (
 )
 from arena.game.weapon import WEAPONS
 from arena.net.protocol import PROTOCOL_VERSION
-from tests.conftest import FakeConn, auth
+from tests.conftest import FakeConn, auth, wait_for
 from tests.test_combat import RANGE, cmd, standing
 
 ARENA = load_map("arena")
@@ -230,6 +230,10 @@ def test_team_room_over_the_api_and_socket(api: TestClient, db_path: Path) -> No
                 break
         assert message["teams"] == {"blue": 5, "red": 0}
 
-    with sqlite3.connect(db_path) as conn:
-        rows = conn.execute("SELECT player_id, team, won FROM match_players").fetchall()
-    assert sorted(rows) == sorted([(host["id"], "blue", 1), (guest["id"], "red", 0)])
+        def saved() -> list[tuple[str, str, int]]:
+            with sqlite3.connect(db_path) as conn:
+                return conn.execute("SELECT player_id, team, won FROM match_players").fetchall()
+
+        # The result is written outside the game loop, a moment after the match ends.
+        wait_for(saved)
+    assert sorted(saved()) == sorted([(host["id"], "blue", 1), (guest["id"], "red", 0)])

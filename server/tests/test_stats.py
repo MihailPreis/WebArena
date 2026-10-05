@@ -1,6 +1,5 @@
 import asyncio
 import sqlite3
-import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -16,7 +15,7 @@ from arena.game.room import RESULTS, MatchSettings, Room
 from arena.game.weapon import WEAPONS
 from arena.main import create_app
 from arena.net.protocol import PROTOCOL_VERSION
-from tests.conftest import FakeConn, auth
+from tests.conftest import FakeConn, auth, wait_for
 from tests.test_combat import Duel
 
 ARENA = load_map("arena")
@@ -285,11 +284,3 @@ def test_player_stats_endpoint(api: TestClient, db_path: Path) -> None:
 def stats_of(api: TestClient, player_id: str) -> dict[str, Any]:
     stats: dict[str, Any] = api.get(f"/api/players/{player_id}").json()
     return stats
-
-
-def wait_for(condition: Any, timeout: float = 5.0) -> None:
-    deadline = time.monotonic() + timeout
-    while not condition():
-        if time.monotonic() > deadline:
-            raise AssertionError("condition was not met in time")
-        time.sleep(0.02)

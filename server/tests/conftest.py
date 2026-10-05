@@ -1,4 +1,5 @@
 import json
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -44,3 +45,11 @@ class FakeConn:
 
     def last(self, kind: str) -> dict[str, Any]:
         return next(m for m in reversed(self.sent) if m["t"] == kind)
+
+
+def wait_for(condition: Any, timeout: float = 5.0) -> None:
+    deadline = time.monotonic() + timeout
+    while not condition():
+        if time.monotonic() > deadline:
+            raise AssertionError("condition was not met in time")
+        time.sleep(0.02)
