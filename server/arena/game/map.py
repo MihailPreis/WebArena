@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from functools import cache
 from typing import Any
 
+from arena.game.items import ITEM_TYPES
 from arena.shared import SHARED_DIR
 
 Vec3 = tuple[float, float, float]
@@ -24,11 +25,24 @@ class Spawn:
 
 
 @dataclass(frozen=True)
+class Item:
+    type: str
+    """A key of `items.types` in shared/constants.json."""
+    position: Vec3
+    """The point on the floor the item hovers over."""
+
+
+# Clients are told which items are present as bits of one number.
+MAX_ITEMS = 30
+
+
+@dataclass(frozen=True)
 class GameMap:
     name: str
     kill_y: float
     blocks: tuple[Block, ...]
     spawns: tuple[Spawn, ...]
+    items: tuple[Item, ...] = ()
 
 
 def _vec3(value: Any, where: str) -> Vec3:
@@ -59,7 +73,16 @@ def parse_map(raw: Any) -> GameMap:
     ]
     if not spawns:
         raise ValueError("map.spawns: expected a non-empty array")
-    return GameMap(str(raw["name"]), float(raw["killY"]), tuple(blocks), tuple(spawns))
+    items = []
+    for i, item in enumerate(raw.get("items", [])):
+        if item["type"] not in ITEM_TYPES:
+            raise ValueError(f"map.items[{i}].type: unknown item {item['type']!r}")
+        items.append(Item(item["type"], _vec3(item["position"], f"map.items[{i}].position")))
+    if len(items) > MAX_ITEMS:
+        raise ValueError(f"map.items: at most {MAX_ITEMS} items")
+    return GameMap(
+        str(raw["name"]), float(raw["killY"]), tuple(blocks), tuple(spawns), tuple(items)
+    )
 
 
 @cache

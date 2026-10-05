@@ -11,7 +11,17 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from arena.db.players import Player
-from arena.game.combat import Target, aim_direction, eye_position, trace_shot
+from arena.game.combat import (
+    Target,
+    aim_direction,
+    box_distance,
+    eye_position,
+    is_clear,
+    pellet_directions,
+    player_box,
+    trace_shot,
+)
+from arena.game.items import AMMO, ARMOR, HEALTH, ITEM_TYPES, PICKUP_RADIUS, WEAPON, ItemSpec
 from arena.game.map import GameMap, Vec3
 from arena.game.modes import MODES, TEAMS
 from arena.game.movement import (
@@ -23,7 +33,15 @@ from arena.game.movement import (
     step_player,
 )
 from arena.game.results import MatchResult, PlayerResult
-from arena.game.weapon import WeaponState, step_weapon
+from arena.game.weapon import (
+    PROJECTILE,
+    WEAPONS,
+    WeaponSpec,
+    WeaponState,
+    give_ammo,
+    give_weapon,
+    step_weapon,
+)
 from arena.net.protocol import PROTOCOL_VERSION, CloseCode, encode, state_json
 from arena.ratelimit import RateLimiter
 from arena.shared import CONSTANTS
@@ -32,7 +50,7 @@ log = logging.getLogger("arena.room")
 
 _NET = CONSTANTS["net"]
 _COMBAT = CONSTANTS["combat"]
-_WEAPON = CONSTANTS["weapon"]
+_ROCKET = CONSTANTS["rocket"]
 
 SNAPSHOT_INTERVAL: float = 1 / _NET["snapshotRate"]
 # Inputs a client earns per server tick: one per simulation tick of real time.
@@ -47,8 +65,19 @@ TELEPORT_DISTANCE = 5.0
 MAX_HEALTH: int = _COMBAT["maxHealth"]
 RESPAWN_DELAY_S: float = _COMBAT["respawnDelayS"]
 SPAWN_PROTECTION_S: float = _COMBAT["spawnProtectionS"]
-DAMAGE: int = _WEAPON["damage"]
-HEAD_MULTIPLIER: float = _WEAPON["headMultiplier"]
+MAX_ARMOR: int = _COMBAT["maxArmor"]
+# The share of damage that armour takes instead of health, while there is any.
+ARMOR_ABSORB: float = _COMBAT["armorAbsorb"]
+QUAD_MULTIPLIER: float = _COMBAT["quadMultiplier"]
+QUAD_S: float = _COMBAT["quadS"]
+
+_ROCKET_SPEC: WeaponSpec = next(spec for spec in WEAPONS if spec.kind == PROJECTILE)
+ROCKET_SPEED: float = _ROCKET["speed"]
+ROCKET_LIFE_S: float = _ROCKET["lifeS"]
+SPLASH_RADIUS: float = _ROCKET["splashRadius"]
+SELF_DAMAGE: float = _ROCKET["selfDamage"]
+# Speed a blast gives a player, in metres per second per point of damage.
+KNOCKBACK: float = _ROCKET["knockback"]
 
 MIN_PLAYERS: int = CONSTANTS["match"]["minPlayers"]
 RESULTS_S: float = CONSTANTS["match"]["resultsS"]
@@ -93,6 +122,17 @@ class QueuedInput:
 
 
 @dataclass
+class Rocket:
+    id: int
+    owner: str
+    """Public id of the player who fired it."""
+    pos: Vec3
+    direction: Vec3
+    dies_at: float
+    """Game time at which it blows up in the air."""
+
+
+@dataclass
 class Member:
     """A player's slot in the room. Survives disconnects, so the score is kept."""
 
@@ -115,7 +155,10 @@ class Member:
     damage_taken: int = 0
     playtime_s: float = 0.0
     hp: int = MAX_HEALTH
+    armor: int = 0
     alive: bool = True
+    quad_until: float = 0.0
+    """Game time until which the player's damage is multiplied."""
     weapon: WeaponState = field(default_factory=WeaponState)
     respawn_at: float = 0.0
     protected_until: float = 0.0
@@ -152,6 +195,10 @@ class Room:
         self._arrivals = 0
         self._on_match_end = on_match_end
         self._match_started_at = 0
+        self.rockets: list[Rocket] = []
+        self._rocket_seq = 0
+        # Game time at which each item of the map is back; in the past for those present.
+        self.item_back_at: list[float] = [0.0] * len(game_map.items)
         # How long recent ticks took, in seconds: about ten seconds' worth.
         self.tick_durations: deque[float] = deque(maxlen=300)
         # Set while nobody is connected; the registry drops the room once this is old enough.
@@ -321,9 +368,15 @@ class Room:
                 member.state = step_player(member.state, cmd, self.map, TICK_DT)
                 if member.state.pos[1] < self.map.kill_y:
                     member.state = create_player(random.choice(self.map.spawns))
-                member.weapon, fired = step_weapon(member.weapon, cmd.fire, cmd.reload)
+                member.weapon, fired = step_weapon(member.weapon, cmd.fire, cmd.weapon)
                 if fired:
                     self._fire(member, cmd, queued.render_time)
+                self._collect(member)
+
+        if frozen:
+            self.rockets.clear()
+        else:
+            self._step_rockets()
 
         for member in connected:
             if self.state == MATCH:
@@ -342,10 +395,13 @@ class Room:
                 "yaw": round(member.state.yaw, 3),
                 "crouched": member.state.crouched,
                 "dashing": is_dashing(member.state),
+                "quad": now < member.quad_until,
             }
             for member in connected
             if member.alive
         }
+        # Bit `i` is set while item `i` of the map is there to be picked up.
+        items = sum(1 << i for i, back_at in enumerate(self.item_back_at) if back_at <= now)
         for member in connected:
             if member.conn is None:
                 continue
@@ -358,6 +414,7 @@ class Room:
                         "you": state_json(member.state),
                         "status": self._status(member),
                         "players": [v for pid, v in views.items() if pid != member.player.id],
+                        "items": items,
                     }
                 )
             )
@@ -395,10 +452,31 @@ class Room:
 
     def _fire(self, shooter: Member, cmd: InputCmd, render_time: float) -> None:
         now = self.time
-        counted = self.state == MATCH
+        index = shooter.weapon.current
+        spec = WEAPONS[index]
         shooter.protected_until = 0.0  # Attacking gives up spawn protection.
-        if counted:
+        if self.state == MATCH:
             shooter.shots += 1
+        origin = eye_position(shooter.state)
+        if spec.kind == PROJECTILE:
+            self._rocket_seq += 1
+            direction = aim_direction(cmd.yaw, cmd.pitch)
+            self.rockets.append(
+                Rocket(self._rocket_seq, shooter.player.id, origin, direction, now + ROCKET_LIFE_S)
+            )
+            # The shooter gets it too, to learn the number of the rocket it has already drawn.
+            self._broadcast(
+                {
+                    "t": "event",
+                    "e": "rocket",
+                    "n": self._rocket_seq,
+                    "id": shooter.player.id,
+                    "from": origin,
+                    "dir": direction,
+                }
+            )
+            return
+
         # Judge the shot against what the shooter saw: other players are drawn slightly
         # in the past, so rewind them to that moment, within a bounded window.
         seen_at = min(max(render_time, now - MAX_REWIND_S), now)
@@ -407,59 +485,193 @@ class Room:
             for m in self.connected
             if m.alive and self.mode.are_enemies(shooter, m)
         ]
-        origin = eye_position(shooter.state)
-        result = trace_shot(self.map, origin, aim_direction(cmd.yaw, cmd.pitch), targets)
+        ends: list[Vec3] = []
+        # Pellets of one shot add up: the target is told about the shot, not about each pellet.
+        hits: dict[str, tuple[float, bool]] = {}
+        for direction in pellet_directions(cmd.yaw, cmd.pitch, spec.pellets, spec.spread):
+            result = trace_shot(self.map, origin, direction, targets)
+            ends.append(result.end)
+            if result.target_id is None:
+                continue
+            head = result.head and spec.head_multiplier > 1
+            amount, any_head = hits.get(result.target_id, (0.0, False))
+            amount += spec.damage * (spec.head_multiplier if head else 1)
+            hits[result.target_id] = (amount, any_head or head)
         self._broadcast(
             {
                 "t": "event",
                 "e": "shot",
                 "id": shooter.player.id,
+                "w": index,
                 "from": origin,
-                "to": result.end,
+                "to": ends,
             },
             skip=shooter,
         )
-        if result.target_id is None:
-            return
-        target = self.members[result.target_id]
-        if now < target.protected_until:
-            return
-        damage = round(DAMAGE * HEAD_MULTIPLIER) if result.head else DAMAGE
-        if counted:
+        landed = [
+            head
+            for target_id, (amount, head) in hits.items()
+            if self._damage(shooter, self.members[target_id], amount, head, shooter.state.pos)
+        ]
+        if landed and self.state == MATCH:
             shooter.hits += 1
-            shooter.headshots += result.head
-            shooter.damage_dealt += min(damage, target.hp)
-            target.damage_taken += min(damage, target.hp)
-        target.hp = max(target.hp - damage, 0)
+            shooter.headshots += any(landed)
+
+    def _damage(
+        self, attacker: Member, target: Member, amount: float, head: bool, origin: Vec3
+    ) -> bool:
+        """Hurts `target`; armour takes its share first. `origin` is where the damage came
+        from, for the target's direction indicator. Returns whether anything was dealt.
+        """
+        now = self.time
+        if not target.alive or now < target.protected_until:
+            return False
+        own = attacker is target
+        if not own and now < attacker.quad_until:
+            amount *= QUAD_MULTIPLIER
+        damage = round(amount)
+        if damage <= 0:
+            return False
+        absorbed = min(target.armor, math.ceil(damage * ARMOR_ABSORB))
+        taken = min(damage - absorbed, target.hp)
+        target.armor -= absorbed
+        target.hp -= taken
+        counted = self.state == MATCH
+        if counted:
+            target.damage_taken += absorbed + taken
+            if not own:
+                attacker.damage_dealt += absorbed + taken
         hit = encode(
             {
                 "t": "event",
                 "e": "hit",
-                "by": shooter.player.id,
+                "by": attacker.player.id,
                 "target": target.player.id,
                 "dmg": damage,
-                "head": result.head,
-                "from": shooter.state.pos,
+                "head": head,
+                "from": origin,
             }
         )
-        for involved in (shooter, target):
+        for involved in {id(attacker): attacker, id(target): target}.values():
             if involved.conn is not None:
                 involved.conn.send(hit)
         if target.hp == 0:
             target.alive = False
             target.respawn_at = now + RESPAWN_DELAY_S
+            target.quad_until = 0.0
             target.history.clear()
-            if counted:
-                self.mode.record_kill(shooter, target)
+            if counted and own:
+                self.mode.record_suicide(target)
+            elif counted:
+                self.mode.record_kill(attacker, target)
             self._broadcast(
                 {
                     "t": "event",
                     "e": "kill",
-                    "by": shooter.player.id,
+                    "by": attacker.player.id,
                     "target": target.player.id,
-                    "head": result.head,
+                    "head": head,
                 }
             )
+        return True
+
+    def _step_rockets(self) -> None:
+        now = self.time
+        step = ROCKET_SPEED * SNAPSHOT_INTERVAL
+        for rocket in list(self.rockets):
+            owner = self.members.get(rocket.owner)
+            # Rockets fly in the present: unlike bullets they are not rewound, the
+            # shooter has to lead the target.
+            targets = [
+                Target(m.player.id, m.state.pos, m.state.crouched)
+                for m in self.connected
+                if m.alive and owner is not None and self.mode.are_enemies(owner, m)
+            ]
+            result = trace_shot(self.map, rocket.pos, rocket.direction, targets, limit=step)
+            if result.distance < step or now >= rocket.dies_at:
+                self._explode(rocket, result.end, result.target_id)
+            else:
+                rocket.pos = result.end
+
+    def _explode(self, rocket: Rocket, point: Vec3, direct_id: str | None) -> None:
+        self.rockets.remove(rocket)
+        self._broadcast({"t": "event", "e": "explode", "n": rocket.id, "pos": point})
+        owner = self.members.get(rocket.owner)
+        if owner is None:
+            return
+        spec = _ROCKET_SPEC
+        # The point lies on the surface that was hit; look around from just in front of it.
+        d = rocket.direction
+        vantage = (point[0] - d[0] * 0.05, point[1] - d[1] * 0.05, point[2] - d[2] * 0.05)
+        landed = False
+        for member in self.connected:
+            if not member.alive or self.time < member.protected_until:
+                continue
+            if member is not owner and not self.mode.are_enemies(owner, member):
+                continue
+            lo, hi = player_box(member.state.pos, member.state.crouched)
+            centre = ((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2)
+            if member.player.id == direct_id:
+                amount = float(spec.damage)
+            else:
+                distance = box_distance(point, lo, hi)
+                if distance >= SPLASH_RADIUS or not is_clear(self.map, vantage, centre):
+                    continue
+                amount = spec.damage * (1 - distance / SPLASH_RADIUS)
+            # The blast throws the player away from its centre, the shooter included:
+            # that is what a rocket jump is.
+            away = (centre[0] - point[0], centre[1] - point[1], centre[2] - point[2])
+            length = math.hypot(*away)
+            push = amount * KNOCKBACK / length if length > 0 else 0.0
+            vel = member.state.vel
+            member.state = dataclasses.replace(
+                member.state,
+                vel=(vel[0] + away[0] * push, vel[1] + away[1] * push, vel[2] + away[2] * push),
+                on_ground=False,
+            )
+            if member is owner:
+                self._damage(owner, owner, amount * SELF_DAMAGE, False, point)
+            elif self._damage(owner, member, amount, False, point):
+                landed = True
+        if landed and self.state == MATCH:
+            owner.hits += 1
+
+    def _collect(self, member: Member) -> None:
+        """Gives the player the items they are standing on, if they have a use for them."""
+        now = self.time
+        x, y, z = member.state.pos
+        _, top = player_box(member.state.pos, member.state.crouched)
+        for index, item in enumerate(self.map.items):
+            if self.item_back_at[index] > now:
+                continue
+            ix, iy, iz = item.position
+            if math.hypot(ix - x, iz - z) > PICKUP_RADIUS or not y - 0.5 <= iy <= top[1]:
+                continue
+            spec = ITEM_TYPES[item.type]
+            if not self._take(member, spec):
+                continue
+            self.item_back_at[index] = now + spec.respawn_s
+            self._broadcast({"t": "event", "e": "pickup", "id": member.player.id, "item": index})
+
+    def _take(self, member: Member, spec: ItemSpec) -> bool:
+        """Applies an item to a player. False if it would give them nothing."""
+        if spec.kind in (WEAPON, AMMO):
+            give = give_weapon if spec.kind == WEAPON else give_ammo
+            weapon = give(member.weapon, spec.weapon)
+            if weapon is None:
+                return False
+            member.weapon = weapon
+        elif spec.kind == HEALTH:
+            if member.hp >= MAX_HEALTH:
+                return False
+            member.hp = min(member.hp + spec.amount, MAX_HEALTH)
+        elif spec.kind == ARMOR:
+            if member.armor >= MAX_ARMOR:
+                return False
+            member.armor = min(member.armor + spec.amount, MAX_ARMOR)
+        else:
+            member.quad_until = self.time + QUAD_S
+        return True
 
     def _update_match(self, now: float) -> None:
         if self.state == WAITING:
@@ -535,6 +747,9 @@ class Room:
         self._match_started_at = int(time.time())
         self.state = MATCH
         self.state_ends_at = now + self.settings.time_limit_min * 60
+        # A new match starts with every item in place and nothing in the air.
+        self.item_back_at = [0.0] * len(self.map.items)
+        self.rockets.clear()
         log.info("match_started", extra={"room": self.code, "players": len(self.connected)})
         for member in self.connected:
             self._respawn(member)
@@ -559,8 +774,10 @@ class Room:
         enemies = [m for m in self.connected if m.alive and self.mode.are_enemies(member, m)]
         member.state = create_player(self.mode.pick_spawn(self.map, member, enemies))
         member.hp = MAX_HEALTH
+        member.armor = 0
         member.alive = True
         member.weapon = WeaponState()
+        member.quad_until = 0.0
         member.protected_until = self.time + SPAWN_PROTECTION_S
         member.history.clear()
 
@@ -597,11 +814,15 @@ class Room:
         """The private part of a player's state: only that player receives it."""
         return {
             "hp": member.hp,
+            "armor": member.armor,
             "alive": member.alive,
             "frozen": self.state == RESULTS,
+            "weapon": member.weapon.current,
             "ammo": member.weapon.ammo,
+            "owned": member.weapon.owned,
             "cooldown": member.weapon.cooldown,
-            "reload": member.weapon.reload,
+            # Seconds of the damage booster left.
+            "quad": round(max(member.quad_until - self.time, 0.0), 1),
         }
 
     def _broadcast(self, message: dict[str, Any], skip: Member | None = None) -> None:

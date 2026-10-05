@@ -128,7 +128,7 @@ def test_snapshot_shows_other_players_without_secrets() -> None:
     (seen,) = alice.last("snapshot")["players"]
     assert seen["id"] == "b2"
     assert seen["pos"] == list(other.state.pos)
-    assert set(seen) == {"id", "pos", "yaw", "crouched", "dashing"}
+    assert set(seen) == {"id", "pos", "yaw", "crouched", "dashing", "quad"}
     assert "token" not in json.dumps(alice.sent)
 
 

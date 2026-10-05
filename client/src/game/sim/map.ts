@@ -1,3 +1,5 @@
+import constants from '@shared/constants.json';
+
 export type Vec3 = [number, number, number];
 
 export interface Block {
@@ -12,11 +14,19 @@ export interface Spawn {
   yaw: number;
 }
 
+export interface MapItem {
+  /** A key of `items.types` in shared/constants.json. */
+  type: string;
+  /** The point on the floor the item hovers over. */
+  position: Vec3;
+}
+
 export interface GameMap {
   name: string;
   killY: number;
   blocks: Block[];
   spawns: Spawn[];
+  items: MapItem[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -41,12 +51,14 @@ function parseVec3(value: unknown, where: string): Vec3 {
 export function parseMap(raw: unknown): GameMap {
   if (!isRecord(raw)) throw new Error('map: expected an object');
   const { name, killY, blocks, spawns } = raw;
+  const items = raw.items ?? [];
   if (typeof name !== 'string') throw new Error('map.name: expected a string');
   if (typeof killY !== 'number') throw new Error('map.killY: expected a number');
   if (!Array.isArray(blocks)) throw new Error('map.blocks: expected an array');
   if (!Array.isArray(spawns) || spawns.length === 0) {
     throw new Error('map.spawns: expected a non-empty array');
   }
+  if (!Array.isArray(items)) throw new Error('map.items: expected an array');
 
   return {
     name,
@@ -72,6 +84,14 @@ export function parseMap(raw: unknown): GameMap {
         position: parseVec3(spawn.position, `${where}.position`),
         yaw: (spawn.yawDeg * Math.PI) / 180,
       };
+    }),
+    items: items.map((item: unknown, i): MapItem => {
+      const where = `map.items[${i}]`;
+      if (!isRecord(item)) throw new Error(`${where}: expected an object`);
+      if (typeof item.type !== 'string' || !(item.type in constants.items.types)) {
+        throw new Error(`${where}.type: unknown item`);
+      }
+      return { type: item.type, position: parseVec3(item.position, `${where}.position`) };
     }),
   };
 }

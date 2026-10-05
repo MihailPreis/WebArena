@@ -52,9 +52,46 @@ export class GameAudio {
     }
   }
 
-  shot(at: Vec3 | null): void {
-    this.burst(at, { volume: at ? 0.9 : 0.6, duration: 0.16, filter: 1800 });
-    this.tone(at, { from: 180, to: 50, duration: 0.12, volume: 0.6, type: 'square' });
+  /** A shot from the weapon with the given index; for the rocket launcher, the launch. */
+  shot(at: Vec3 | null, weapon = 0): void {
+    const near = at === null;
+    switch (weapon) {
+      case 1:
+        this.burst(at, { volume: near ? 0.9 : 1.2, duration: 0.3, filter: 1100 });
+        this.tone(at, { from: 130, to: 40, duration: 0.22, volume: 0.7, type: 'square' });
+        break;
+      case 2:
+        this.burst(at, { volume: near ? 0.6 : 0.9, duration: 0.4, filter: 700 });
+        this.tone(at, { from: 90, to: 240, duration: 0.3, volume: 0.35, type: 'sawtooth' });
+        break;
+      case 3:
+        this.tone(at, { from: 2200, to: 180, duration: 0.4, volume: 0.5, type: 'sawtooth' });
+        this.burst(at, { volume: near ? 0.5 : 0.8, duration: 0.2, filter: 4000 });
+        break;
+      default:
+        this.burst(at, { volume: near ? 0.45 : 0.75, duration: 0.12, filter: 1800 });
+        this.tone(at, { from: 180, to: 50, duration: 0.1, volume: 0.45, type: 'square' });
+    }
+  }
+
+  explosion(at: Vec3): void {
+    this.burst(at, { volume: 1.6, duration: 0.7, filter: 450 });
+    this.tone(at, { from: 90, to: 28, duration: 0.55, volume: 0.9, type: 'sine' });
+  }
+
+  /** Somebody took an item; `kind` is `weapon`, `ammo`, `health`, `armor` or `quad`. */
+  pickup(at: Vec3 | null, kind: string): void {
+    const volume = at ? 0.5 : 0.3;
+    if (kind === 'quad') {
+      this.tone(at, { from: 220, to: 880, duration: 0.5, volume: volume * 1.4, type: 'sawtooth' });
+    } else if (kind === 'health') {
+      this.tone(at, { from: 520, to: 780, duration: 0.16, volume, type: 'sine' });
+    } else if (kind === 'armor') {
+      this.tone(at, { from: 300, to: 420, duration: 0.18, volume, type: 'triangle' });
+    } else {
+      this.burst(at, { volume: volume * 0.8, duration: 0.05, filter: 3000 });
+      this.tone(at, { from: 700, to: 500, duration: 0.06, volume: volume * 0.7, type: 'square' });
+    }
   }
 
   /** The player's own shot landed. */
@@ -87,9 +124,9 @@ export class GameAudio {
     this.tone(at, { from: 140, to: 320, duration: 0.14, volume: 0.12, type: 'sine' });
   }
 
-  reload(): void {
-    this.burst(null, { volume: 0.25, duration: 0.05, filter: 3000 });
-    this.tone(null, { from: 700, to: 500, duration: 0.05, volume: 0.2, type: 'square' });
+  /** The weapon in hand has changed. */
+  weaponSwitch(): void {
+    this.burst(null, { volume: 0.2, duration: 0.05, filter: 2500 });
   }
 
   private output(at: Vec3 | null): AudioNode | null {

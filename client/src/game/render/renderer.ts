@@ -1,8 +1,10 @@
 import { Color, Fog, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
 import type { GameMap, Vec3 } from '../sim/map';
+import { ItemSprites } from './items';
 import { PlayerSprites, type RenderPlayer } from './players';
+import { Projectiles } from './projectiles';
 import { buildSky } from './sky';
-import { Tracers } from './tracers';
+import { Tracers, type TracerStyle } from './tracers';
 import { buildWorld } from './world';
 
 // The scene is drawn at roughly this many rows and upscaled without smoothing.
@@ -24,7 +26,18 @@ export interface GameRenderer {
   /** `dt` is the time since the previous frame, in seconds. */
   render(view: View, players: readonly RenderPlayer[], dt: number): void;
   /** Shows the path of a shot for a moment. */
-  addTracer(from: Vec3, to: Vec3): void;
+  addTracer(from: Vec3, to: Vec3, style?: TracerStyle): void;
+  /** Bit `i` of `mask` is set while item `i` of the map is there to be picked up. */
+  setItems(mask: number): void;
+  /**
+   * Shows a rocket flying from `from` along `dir` for at most `limit` metres. The
+   * first `skip` metres are not drawn. `key` names it for `bindRocket` and `explode`.
+   */
+  launchRocket(key: number, from: Vec3, dir: Vec3, limit: number, skip?: number): void;
+  /** Renames a rocket once the server has given it a number. */
+  bindRocket(key: number, number: number): void;
+  /** Shows a blast and removes the rocket that caused it. */
+  explode(key: number, pos: Vec3): void;
   /**
    * The point in the world that appears at screen position (x, y), in CSS pixels,
    * `distance` metres from the camera as of the last rendered frame.
@@ -53,6 +66,10 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
   scene.add(sprites.group);
   const tracers = new Tracers();
   scene.add(tracers.group);
+  const items = new ItemSprites(map.items);
+  scene.add(items.group);
+  const projectiles = new Projectiles();
+  scene.add(projectiles.group);
 
   const camera = new PerspectiveCamera(VERTICAL_FOV, 1, 0.05, 200);
   camera.rotation.order = 'YXZ';
@@ -75,8 +92,20 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
 
   return {
     resize,
-    addTracer(from, to) {
-      tracers.add(from, to);
+    addTracer(from, to, style) {
+      tracers.add(from, to, style);
+    },
+    setItems(mask) {
+      items.setPresent(mask);
+    },
+    launchRocket(key, from, dir, limit, skip) {
+      projectiles.launch(key, from, dir, limit, skip);
+    },
+    bindRocket(key, number) {
+      projectiles.rename(key, number);
+    },
+    explode(key, pos) {
+      projectiles.explode(key, pos);
     },
     screenToWorld(x, y, distance) {
       const rect = canvas.getBoundingClientRect();
@@ -107,6 +136,8 @@ export function createRenderer(canvas: HTMLCanvasElement, map: GameMap): GameRen
         camera.updateProjectionMatrix();
       }
       tracers.update(dt);
+      items.update(dt);
+      projectiles.update(dt);
       camera.position.set(view.eye[0], view.eye[1], view.eye[2]);
       camera.rotation.set(view.pitch, view.yaw, 0);
       sky.position.copy(camera.position);

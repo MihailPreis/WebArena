@@ -16,7 +16,7 @@ import {
 const FLOOR: Block = { min: [-50, -1, -50], max: [50, 0, 50], material: 'floor' };
 
 function makeMap(...blocks: Block[]): GameMap {
-  return { name: 'test', killY: -20, blocks: [FLOOR, ...blocks], spawns: [] };
+  return { name: 'test', killY: -20, blocks: [FLOOR, ...blocks], spawns: [], items: [] };
 }
 
 function spawnAt(position: Vec3, map: GameMap): PlayerState {
@@ -34,7 +34,7 @@ function cmd(overrides: Partial<InputCmd> = {}): InputCmd {
     yaw: 0,
     pitch: 0,
     fire: false,
-    reload: false,
+    weapon: 0,
     ...overrides,
   };
 }

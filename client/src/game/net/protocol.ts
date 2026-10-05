@@ -37,17 +37,26 @@ export interface RemoteState {
   yaw: number;
   crouched: boolean;
   dashing: boolean;
+  /** Carries the damage booster. */
+  quad: boolean;
 }
 
 /** The private part of the player's own state. */
 export interface SelfStatus {
   hp: number;
+  armor: number;
   alive: boolean;
   /** The match is over and the results are shown: nobody can move or shoot. */
   frozen: boolean;
-  ammo: number;
+  /** Index of the weapon in hand. */
+  weapon: number;
+  /** Rounds left for each weapon. */
+  ammo: number[];
+  /** Bit `i` is set when weapon `i` has been picked up. */
+  owned: number;
   cooldown: number;
-  reload: number;
+  /** Seconds of the damage booster left. */
+  quad: number;
 }
 
 export interface WelcomeMsg {
@@ -70,15 +79,24 @@ export interface SnapshotMsg {
   status: SelfStatus;
   /** Living players other than the receiver. */
   players: RemoteState[];
+  /** Bit `i` is set while item `i` of the map is there to be picked up. */
+  items: number;
 }
 
 export type EventMsg =
   | { t: 'event'; e: 'join'; player: PublicPlayer }
   | { t: 'event'; e: 'leave'; id: string }
-  /** Someone else fired; `from` is their eye, `to` is where the shot stopped. */
-  | { t: 'event'; e: 'shot'; id: string; from: Vec3; to: Vec3 }
-  /** Sent to the shooter and the target only; `from` is the shooter's position. */
+  /** Someone else fired weapon `w`; `from` is their eye, `to` is where each pellet stopped. */
+  | { t: 'event'; e: 'shot'; id: string; w: number; from: Vec3; to: Vec3[] }
+  /** Rocket number `n` was launched by player `id`. The shooter gets this too. */
+  | { t: 'event'; e: 'rocket'; n: number; id: string; from: Vec3; dir: Vec3 }
+  /** Rocket number `n` blew up. */
+  | { t: 'event'; e: 'explode'; n: number; pos: Vec3 }
+  /** Player `id` took item number `item` of the map. */
+  | { t: 'event'; e: 'pickup'; id: string; item: number }
+  /** Sent to the attacker and the target only; `from` is where the damage came from. */
   | { t: 'event'; e: 'hit'; by: string; target: string; dmg: number; head: boolean; from: Vec3 }
+  /** `by` equals `target` when a player died by their own rocket. */
   | { t: 'event'; e: 'kill'; by: string; target: string; head: boolean }
   | { t: 'event'; e: 'spawn'; id: string; yaw: number }
   /** A player switched sides. */
@@ -131,7 +149,8 @@ export type ClientMessage =
       yaw: number;
       pitch: number;
       fire: boolean;
-      reload: boolean;
+      /** Index of the weapon the player wants in hand. */
+      w: number;
       /** Server time the client is drawing other players at, for lag compensation. */
       rt: number;
     }
@@ -152,7 +171,7 @@ export function inputMessage(seq: number, cmd: InputCmd, renderTime: number): Cl
     yaw: cmd.yaw,
     pitch: cmd.pitch,
     fire: cmd.fire,
-    reload: cmd.reload,
+    w: cmd.weapon,
     rt: renderTime,
   };
 }

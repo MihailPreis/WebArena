@@ -394,6 +394,32 @@ body.game {
   border-left: 0.25em solid var(--accent);
 }
 
+#quad {
+  display: flex;
+  gap: 0.6em;
+  align-items: baseline;
+  margin-top: 0.4em;
+  padding: 0.25em 1em;
+  font-size: 1.125em;
+  font-weight: 800;
+  color: #fff;
+  background: #3f5fe0;
+  transform: skewX(var(--skew));
+}
+
+#pickup {
+  position: absolute;
+  left: 50%;
+  top: 70%;
+  padding: 0.25em 1em;
+  font-size: 1.125em;
+  font-weight: 800;
+  white-space: nowrap;
+  background: var(--plate);
+  border-left: 0.25em solid var(--gold);
+  transform: translateX(-50%) skewX(var(--skew));
+}
+
 #debug {
   position: absolute;
   left: 1.4em;
@@ -468,7 +494,7 @@ body.game {
 #chat {
   position: absolute;
   left: 1.75em;
-  bottom: 11em;
+  bottom: 12.5em;
   display: flex;
   flex-direction: column;
   gap: 0.4em;
@@ -634,6 +660,37 @@ body.game {
   }
 }
 
+.armor-row {
+  display: flex;
+  gap: 0.75em;
+  align-items: center;
+}
+
+#armor-bar {
+  flex-grow: 1;
+  height: 0.5em;
+  background: rgba(10, 12, 18, 0.7);
+  transform: skewX(var(--skew));
+}
+
+#armor-fill {
+  height: 100%;
+  background: var(--gold);
+  transition: width 0.12s;
+}
+
+#armor {
+  min-width: 2.55em;
+  font-size: 1.25em;
+  font-weight: 800;
+  text-align: right;
+  color: var(--gold);
+}
+
+.armor-row.none {
+  opacity: 0.4;
+}
+
 #dash {
   display: flex;
   gap: 0.5em;
@@ -695,61 +752,48 @@ body.game {
   color: var(--ink-dim);
 }
 
-#ammo-cells {
+#weapon-slots {
   display: flex;
-  gap: 0.19em;
-  width: 100%;
-  height: 0.625em;
+  gap: 0.3em;
+}
+
+/* One weapon: its key, and how much there is to fire from it. */
+.slot {
+  display: flex;
+  gap: 0.35em;
+  align-items: baseline;
+  padding: 0.15em 0.5em;
+  font-weight: 700;
+  color: var(--ink-faint);
+  background: rgba(10, 12, 18, 0.55);
+  border-bottom: 0.2em solid transparent;
+  opacity: 0.45;
   transform: skewX(var(--skew));
 }
 
-#ammo-cells i {
-  flex: 1;
-  background: rgba(244, 241, 234, 0.25);
-  box-shadow: var(--shade);
+.slot kbd {
+  font: inherit;
+  font-size: 0.8em;
 }
 
-#ammo-cells i.full {
+.slot.owned {
+  color: var(--ink);
+  border-bottom-color: var(--c);
+  opacity: 1;
+}
+
+.slot.owned.empty {
+  color: var(--danger);
+}
+
+.slot.current {
+  color: var(--bg-deep);
   background: var(--ink);
+  text-shadow: none;
 }
 
 #weapon-card.low #ammo {
   color: var(--danger);
-}
-
-#weapon-card.low #ammo-cells i.full {
-  background: var(--danger);
-}
-
-#weapon-card.reloading #ammo {
-  opacity: 0.45;
-}
-
-#weapon-card.reloading #ammo-cells i.full {
-  background: var(--accent);
-}
-
-#reload-hint {
-  display: flex;
-  gap: 0.5em;
-  align-items: center;
-  font-size: 0.94em;
-  font-weight: 700;
-  color: var(--ink-dim);
-}
-
-/* Keeps its place when hidden, so the card does not jump. */
-#reload-hint[hidden] {
-  display: flex !important;
-  visibility: hidden;
-}
-
-#reload-hint kbd {
-  padding: 0 0.45em;
-  font: inherit;
-  color: var(--bg-deep);
-  background: var(--ink);
-  text-shadow: none;
 }
 
 #hud.dead #crosshair,

@@ -59,7 +59,7 @@
     }
   },
   "net": {
-    "protocolVersion": 6,
+    "protocolVersion": 7,
     "snapshotRate": 30,
     "interpolationDelayMs": 100,
     "maxInputBurst": 20,
@@ -69,17 +69,89 @@
   },
   "combat": {
     "maxHealth": 100,
+    "maxArmor": 100,
+    "armorAbsorb": 0.66,
     "respawnDelayS": 3,
     "spawnProtectionS": 1.5,
-    "headHeight": 0.3
+    "headHeight": 0.3,
+    "range": 100,
+    "switchTicks": 18,
+    "quadMultiplier": 3,
+    "quadS": 30
   },
-  "weapon": {
-    "damage": 20,
-    "headMultiplier": 2,
-    "fireIntervalTicks": 8,
-    "magazine": 20,
-    "reloadTicks": 90,
-    "range": 100
+  "weapons": [
+    {
+      "id": "machinegun",
+      "kind": "hitscan",
+      "damage": 7,
+      "headMultiplier": 2,
+      "intervalTicks": 6,
+      "pellets": 1,
+      "spread": 0,
+      "startAmmo": 100,
+      "pickupAmmo": 50,
+      "maxAmmo": 200
+    },
+    {
+      "id": "shotgun",
+      "kind": "hitscan",
+      "damage": 10,
+      "headMultiplier": 1,
+      "intervalTicks": 60,
+      "pellets": 11,
+      "spread": 0.07,
+      "startAmmo": 0,
+      "pickupAmmo": 10,
+      "maxAmmo": 50
+    },
+    {
+      "id": "rocketlauncher",
+      "kind": "projectile",
+      "damage": 100,
+      "headMultiplier": 1,
+      "intervalTicks": 48,
+      "pellets": 1,
+      "spread": 0,
+      "startAmmo": 0,
+      "pickupAmmo": 10,
+      "maxAmmo": 50
+    },
+    {
+      "id": "railgun",
+      "kind": "hitscan",
+      "damage": 100,
+      "headMultiplier": 1,
+      "intervalTicks": 90,
+      "pellets": 1,
+      "spread": 0,
+      "startAmmo": 0,
+      "pickupAmmo": 10,
+      "maxAmmo": 50
+    }
+  ],
+  "rocket": {
+    "speed": 28,
+    "lifeS": 5,
+    "splashRadius": 3.5,
+    "selfDamage": 0.5,
+    "knockback": 0.1
+  },
+  "items": {
+    "radius": 1,
+    "types": {
+      "shotgun": { "kind": "weapon", "weapon": 1, "amount": 0, "respawnS": 5 },
+      "rocketlauncher": { "kind": "weapon", "weapon": 2, "amount": 0, "respawnS": 5 },
+      "railgun": { "kind": "weapon", "weapon": 3, "amount": 0, "respawnS": 5 },
+      "bullets": { "kind": "ammo", "weapon": 0, "amount": 0, "respawnS": 40 },
+      "shells": { "kind": "ammo", "weapon": 1, "amount": 0, "respawnS": 40 },
+      "rockets": { "kind": "ammo", "weapon": 2, "amount": 0, "respawnS": 40 },
+      "slugs": { "kind": "ammo", "weapon": 3, "amount": 0, "respawnS": 40 },
+      "health": { "kind": "health", "weapon": -1, "amount": 25, "respawnS": 35 },
+      "health_large": { "kind": "health", "weapon": -1, "amount": 50, "respawnS": 35 },
+      "armor": { "kind": "armor", "weapon": -1, "amount": 50, "respawnS": 25 },
+      "armor_heavy": { "kind": "armor", "weapon": -1, "amount": 100, "respawnS": 25 },
+      "quad": { "kind": "quad", "weapon": -1, "amount": 0, "respawnS": 120 }
+    }
   },
   "chat": {
     "maxLength": 120

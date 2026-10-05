@@ -4,6 +4,15 @@ import { stepPlayer, type InputCmd, type PlayerState } from '../sim/movement';
 import { stepWeapon, type WeaponState } from '../sim/weapon';
 import type { SelfStatus } from './protocol';
 
+function weaponOf(status: SelfStatus): WeaponState {
+  return {
+    current: status.weapon,
+    ammo: status.ammo,
+    owned: status.owned,
+    cooldown: status.cooldown,
+  };
+}
+
 // If the server stops acknowledging, do not grow the replay buffer without bound.
 const MAX_PENDING = 240;
 
@@ -30,13 +39,14 @@ export class Prediction {
   ) {
     this.current = initial;
     this.previous = initial;
-    this.weapon = { ammo: status.ammo, cooldown: status.cooldown, reload: status.reload };
+    this.weapon = weaponOf(status);
     this.active = status.alive && !status.frozen;
   }
 
   /**
    * Simulates one tick. Returns the sequence number to send with the input and
-   * whether the weapon fired, so the caller can play the shot at once.
+   * whether the weapon in hand (`this.weapon.current`) fired, so the caller can play
+   * the shot at once.
    */
   step(cmd: InputCmd): { seq: number; fired: boolean } {
     const seq = this.nextSeq++;
@@ -46,7 +56,7 @@ export class Prediction {
     if (!this.active) return { seq, fired: false };
 
     this.current = stepPlayer(this.current, cmd, this.map, TICK_DT);
-    const { weapon, fired } = stepWeapon(this.weapon, cmd.fire, cmd.reload);
+    const { weapon, fired } = stepWeapon(this.weapon, cmd.fire, cmd.weapon);
     this.weapon = weapon;
     return { seq, fired };
   }
@@ -63,16 +73,12 @@ export class Prediction {
 
     let state = serverState;
     let previous = serverState;
-    let weapon: WeaponState = {
-      ammo: status.ammo,
-      cooldown: status.cooldown,
-      reload: status.reload,
-    };
+    let weapon = weaponOf(status);
     if (this.active) {
       for (const { cmd } of this.pending) {
         previous = state;
         state = stepPlayer(state, cmd, this.map, TICK_DT);
-        weapon = stepWeapon(weapon, cmd.fire, cmd.reload).weapon;
+        weapon = stepWeapon(weapon, cmd.fire, cmd.weapon).weapon;
       }
     }
     this.previous = previous;

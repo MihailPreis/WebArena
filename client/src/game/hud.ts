@@ -1,5 +1,9 @@
+import constants from '@shared/constants.json';
 import { heading, headingText, MARK_STEP, markLabel } from './compass';
+import { WEAPON_NAMES } from './labels';
+import { WEAPON_COLORS } from './render/colors';
 import type { Vec3 } from './sim/map';
+import { usable, WEAPONS, type WeaponState } from './sim/weapon';
 
 const KILL_FEED_SIZE = 5;
 const KILL_FEED_TTL_MS = 6000;
@@ -7,6 +11,8 @@ const HIT_MARKER_MS = 160;
 const DAMAGE_INDICATOR_MS = 1000;
 const DAMAGE_NUMBER_MS = 800;
 const LOW_HEALTH = 30;
+const PICKUP_MS = 1600;
+const MAX_ARMOR = constants.combat.maxArmor;
 
 // The compass strip: width of one degree, in em, and how many turns are laid out.
 const EM_PER_DEGREE = 0.225;
@@ -79,8 +85,12 @@ export class Hud {
   private readonly weaponCard = element('weapon-card');
   private readonly ammo = element('ammo');
   private readonly ammoMax = element('ammo-max');
-  private readonly ammoCells = element('ammo-cells');
-  private readonly reloadHint = element('reload-hint');
+  private readonly weaponName = element('weapon-name');
+  private readonly slots: HTMLElement[] = [];
+  private readonly armor = element('armor');
+  private readonly armorFill = element('armor-fill');
+  private readonly quad = element('quad');
+  private readonly pickupNote = element('pickup');
   private readonly crosshair = element('crosshair');
   private readonly feed = element('killfeed');
   private readonly damage = element('damage');
@@ -105,7 +115,10 @@ export class Hud {
   private readonly tags = new Map<string, { root: HTMLElement; label: HTMLElement }>();
   private readonly floaters = new Set<{ root: HTMLElement; pos: Vec3 }>();
   private hitTimer = 0;
+  private pickupTimer = 0;
   private hp = -1;
+  private armorShown = -1;
+  private quadShown = -1;
   private dashShown = -1;
   private ammoKey = '';
   private matchKey = '';
@@ -121,6 +134,17 @@ export class Hud {
       mark.style.left = `${degrees * EM_PER_DEGREE}em`;
       this.compassStrip.append(mark);
     }
+    const slotRoot = element('weapon-slots');
+    WEAPONS.forEach((_, index) => {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.style.setProperty('--c', WEAPON_COLORS[index] ?? 'var(--ink)');
+      const key = document.createElement('kbd');
+      key.textContent = String(index + 1);
+      slot.append(key, document.createElement('b'));
+      slotRoot.append(slot);
+      this.slots.push(slot);
+    });
   }
 
   /** The player's own card: the name and a line under it, e.g. the team and the score. */
@@ -171,28 +195,52 @@ export class Hud {
     }
   }
 
-  /** `reloadProgress` runs from 0 to 1 while reloading and is null otherwise. */
-  setAmmo(ammo: number, magazine: number, reloadProgress: number | null): void {
-    const reloading = reloadProgress !== null;
-    const filled = reloading ? Math.floor(reloadProgress * magazine) : ammo;
-    const key = `${ammo}/${magazine}/${filled}/${reloading}`;
+  setArmor(armor: number): void {
+    if (armor === this.armorShown) return;
+    this.armorShown = armor;
+    this.armor.textContent = String(armor);
+    this.armorFill.style.width = `${(armor / MAX_ARMOR) * 100}%`;
+    this.armor.parentElement?.classList.toggle('none', armor === 0);
+  }
+
+  /** The weapon in hand with its ammunition, and a slot for every weapon there is. */
+  setWeapons(state: WeaponState): void {
+    const key = `${state.current}/${state.owned}/${state.ammo.join()}`;
     if (key === this.ammoKey) return;
     this.ammoKey = key;
 
-    while (this.ammoCells.children.length < magazine) {
-      this.ammoCells.append(document.createElement('i'));
-    }
-    [...this.ammoCells.children].forEach((cell, index) => {
-      cell.classList.toggle('full', index < filled);
-    });
+    const spec = WEAPONS[state.current];
+    const ammo = state.ammo[state.current] ?? 0;
+    this.weaponName.textContent = WEAPON_NAMES[state.current] ?? '';
     this.ammo.textContent = String(ammo);
-    this.ammoMax.textContent = `/ ${magazine}`;
-    const low = !reloading && ammo <= magazine / 4;
-    this.weaponCard.classList.toggle('reloading', reloading);
-    this.weaponCard.classList.toggle('low', low);
-    this.reloadHint.hidden = !reloading && !low;
-    const label = this.reloadHint.lastElementChild;
-    if (label) label.textContent = reloading ? 'перезарядка…' : 'перезарядить';
+    this.ammoMax.textContent = `/ ${spec?.maxAmmo ?? 0}`;
+    this.weaponCard.classList.toggle('low', ammo <= (spec?.pickupAmmo ?? 0) / 5);
+    this.slots.forEach((slot, index) => {
+      const owned = ((state.owned >> index) & 1) === 1;
+      slot.classList.toggle('owned', owned);
+      slot.classList.toggle('empty', owned && !usable(state, index));
+      slot.classList.toggle('current', index === state.current);
+      const count = slot.lastElementChild;
+      if (count) count.textContent = owned ? String(state.ammo[index] ?? 0) : '—';
+    });
+  }
+
+  /** Seconds of the damage booster left; 0 hides the timer. */
+  setQuad(seconds: number): void {
+    const shown = Math.ceil(seconds);
+    if (shown === this.quadShown) return;
+    this.quadShown = shown;
+    this.quad.hidden = shown <= 0;
+    const timer = this.quad.lastElementChild;
+    if (timer) timer.textContent = String(shown);
+  }
+
+  /** Tells the player what they have just picked up. */
+  pickup(text: string): void {
+    this.pickupNote.textContent = text;
+    this.pickupNote.hidden = false;
+    window.clearTimeout(this.pickupTimer);
+    this.pickupTimer = window.setTimeout(() => (this.pickupNote.hidden = true), PICKUP_MS);
   }
 
   /** The player's own shot: the weapon card kicks. */

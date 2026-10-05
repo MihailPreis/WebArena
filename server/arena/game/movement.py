@@ -68,7 +68,8 @@ class InputCmd:
     pitch: float
     # Not used by movement; carried here so one input describes everything the player did.
     fire: bool = False
-    reload: bool = False
+    weapon: int = 0
+    """Index of the weapon the player wants in hand."""
 
 
 def create_player(spawn: Spawn) -> PlayerState:

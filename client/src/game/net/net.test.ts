@@ -7,7 +7,17 @@ import { RemoteInterpolator } from './interpolation';
 import { Prediction } from './prediction';
 
 const arena = parseMap(arenaJson);
-const FRESH = { hp: 100, alive: true, frozen: false, ammo: 20, cooldown: 0, reload: 0 };
+const FRESH = {
+  hp: 100,
+  armor: 0,
+  alive: true,
+  frozen: false,
+  weapon: 0,
+  ammo: [100, 0, 0, 0],
+  owned: 1,
+  cooldown: 0,
+  quad: 0,
+};
 const spawn = { position: [0, 0, 16] as [number, number, number], yaw: 0 };
 
 function cmd(overrides: Partial<InputCmd> = {}): InputCmd {
@@ -20,7 +30,7 @@ function cmd(overrides: Partial<InputCmd> = {}): InputCmd {
     yaw: 0,
     pitch: 0,
     fire: false,
-    reload: false,
+    weapon: 0,
     ...overrides,
   };
 }
@@ -91,7 +101,7 @@ describe('Prediction of the weapon and of death', () => {
     const prediction = new Prediction(arena, createPlayer(spawn), FRESH);
     expect(prediction.step(cmd({ fire: true })).fired).toBe(true);
     expect(prediction.step(cmd({ fire: true })).fired).toBe(false);
-    expect(prediction.weapon.ammo).toBe(19);
+    expect(prediction.weapon.ammo[0]).toBe(99);
   });
 
   it('takes ammunition from the server and replays unacknowledged shots', () => {
@@ -99,12 +109,23 @@ describe('Prediction of the weapon and of death', () => {
     const first = prediction.step(cmd({ fire: true })).seq;
     for (let i = 0; i < 8; i++) prediction.step(cmd());
     prediction.step(cmd({ fire: true }));
-    expect(prediction.weapon.ammo).toBe(18);
+    expect(prediction.weapon.ammo[0]).toBe(98);
 
     // The server has simulated only the first shot so far.
-    const afterFirst = { ...FRESH, ammo: 19, cooldown: 8 };
+    const afterFirst = { ...FRESH, ammo: [99, 0, 0, 0], cooldown: 6 };
     prediction.reconcile(prediction.current, afterFirst, first);
-    expect(prediction.weapon.ammo).toBe(18);
+    expect(prediction.weapon.ammo[0]).toBe(98);
+  });
+
+  it('switches to a weapon once the server says it was picked up', () => {
+    const prediction = new Prediction(arena, createPlayer(spawn), FRESH);
+    const seq = prediction.step(cmd({ weapon: 3 })).seq;
+    expect(prediction.weapon.current).toBe(0);
+
+    const armed = { ...FRESH, ammo: [100, 0, 0, 10], owned: 0b1001 };
+    prediction.reconcile(prediction.current, armed, seq);
+    prediction.step(cmd({ weapon: 3 }));
+    expect(prediction.weapon.current).toBe(3);
   });
 
   it('does not move or shoot while dead', () => {
@@ -126,7 +147,14 @@ describe('Prediction of the weapon and of death', () => {
 
 describe('RemoteInterpolator', () => {
   const at = (x: number, yaw = 0) => [
-    { id: 'p', pos: [x, 0, 0] as [number, number, number], yaw, crouched: false, dashing: false },
+    {
+      id: 'p',
+      pos: [x, 0, 0] as [number, number, number],
+      yaw,
+      crouched: false,
+      dashing: false,
+      quad: false,
+    },
   ];
 
   it('renders players in the past, between two snapshots', () => {

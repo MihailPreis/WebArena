@@ -1,6 +1,7 @@
 import { CanvasTexture, Group, NearestFilter, Sprite, SpriteMaterial, SRGBColorSpace } from 'three';
 import { PLAYER } from '../sim/constants';
 import type { Vec3 } from '../sim/map';
+import { QUAD_COLOR } from './colors';
 import { FRAME_COUNT, paintNameTag, paintPlayerAtlas } from './playerSprite';
 
 const SPRITE_WIDTH = 0.9;
@@ -25,6 +26,8 @@ export interface RenderPlayer {
   /** Whether the name floats over the player in the world. */
   nameTag: boolean;
   dashing: boolean;
+  /** Carries the damage booster: the sprite is tinted. */
+  quad: boolean;
 }
 
 interface Entry {
@@ -42,7 +45,7 @@ interface Ghost {
   age: number;
 }
 
-function pixelTexture(canvas: HTMLCanvasElement): CanvasTexture {
+export function pixelTexture(canvas: HTMLCanvasElement): CanvasTexture {
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
   texture.magFilter = NearestFilter;
@@ -85,6 +88,7 @@ export class PlayerSprites {
       const frame = ((turns % FRAME_COUNT) + FRAME_COUNT) % FRAME_COUNT;
       entry.body.material.map?.offset.set(frame / FRAME_COUNT, player.crouched ? 0 : 0.5);
       entry.body.position.set(x, y, z);
+      entry.body.material.color.set(player.quad ? QUAD_COLOR : '#ffffff');
 
       const height = player.crouched ? PLAYER.crouchHeight : PLAYER.standHeight;
       entry.tag.position.set(x, y + height + NAME_GAP, z);

@@ -7,6 +7,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from arena.game.movement import InputCmd, PlayerState
+from arena.game.weapon import WEAPONS
 from arena.shared import CONSTANTS, ROOM
 
 PROTOCOL_VERSION: int = CONSTANTS["net"]["protocolVersion"]
@@ -49,7 +50,8 @@ class InputMsg(_ClientModel):
     yaw: Annotated[float, Field(ge=-7, le=7, strict=False)]
     pitch: Annotated[float, Field(ge=-1.6, le=1.6, strict=False)]
     fire: bool
-    reload: bool
+    # Index of the weapon the player wants in hand.
+    w: int = Field(ge=0, le=len(WEAPONS) - 1)
     # Server time the client was drawing other players at; used for lag compensation.
     rt: Annotated[float, Field(ge=0, le=1e9, strict=False)]
 
@@ -63,7 +65,7 @@ class InputMsg(_ClientModel):
             yaw=self.yaw,
             pitch=self.pitch,
             fire=self.fire,
-            reload=self.reload,
+            weapon=self.w,
         )
 
 

@@ -10,6 +10,7 @@ import { GameAudio } from './audio';
 import { Chat } from './chat';
 import { Hud, type MatchSide, type NamedPlayer, type TeammateTag } from './hud';
 import { Input } from './input';
+import { itemKind, itemLabel } from './labels';
 import { Menu } from './menu';
 import { Connection } from './net/connection';
 import { RemoteInterpolator } from './net/interpolation';
@@ -41,8 +42,8 @@ import { PLAYER, TICK_DT } from './sim/constants';
 import { FixedStep } from './sim/fixedStep';
 import { parseMap, type Vec3 } from './sim/map';
 import { dashReadiness, type InputCmd } from './sim/movement';
-import { aimDirection, shotEnd } from './sim/ray';
-import { WEAPON } from './sim/weapon';
+import { aimDirection, pelletDirections, shotEnd } from './sim/ray';
+import { usable, WEAPONS, type WeaponState } from './sim/weapon';
 import { ViewSmoother } from './view';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -221,6 +222,24 @@ const STEP_DISTANCE = 2.2;
 const MUZZLE_DISTANCE = 0.5;
 // How far above a teammate's head their label floats, in metres.
 const TAG_GAP = 0.45;
+// The player's own rocket is drawn from this far ahead of the eyes.
+const ROCKET_SKIP = 1;
+// How long a rail's trail stays in the air, in seconds.
+const RAIL_TRAIL_S = 0.5;
+const RAILGUN = WEAPONS.findIndex((spec) => spec.id === 'railgun');
+const ROCKET_LAUNCHER = WEAPONS.findIndex((spec) => spec.kind === 'projectile');
+// A rocket drawn at once waits this long for the server to number it.
+const ROCKET_CONFIRM_MS = 1500;
+
+/** The usable weapon after `state.current`, going `direction` (1 or -1) round the list. */
+function nextWeapon(state: WeaponState, direction: number): number {
+  for (let step = 1; step < WEAPONS.length; step++) {
+    const index = (state.current + direction * step + WEAPONS.length * step) % WEAPONS.length;
+    if (usable(state, index)) return index;
+  }
+  return state.current;
+}
+
 // After Esc releases the mouse, ignore Esc for a moment: that same key press must not
 // close the menu it has just opened.
 const ESCAPE_GUARD_MS = 250;
@@ -323,6 +342,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     },
   );
   input.yaw = welcome.you.yaw;
+  input.weapon = welcome.status.weapon;
   const chat = new Chat(
     (text) => connection.sendChat(text),
     (open) => input.suspend(open),
@@ -393,29 +413,56 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     crouched: boolean;
     nameTag: boolean;
     dashing: boolean;
+    quad: boolean;
   })[] = [];
   // Who killed the player, or a plain explanation when nobody did.
   let deathCause: NamedPlayer | string = '';
   let diedAt = 0;
   let stride = 0;
   let nextStep = STEP_DISTANCE;
-  let wasReloading = false;
+  let weaponShown = welcome.status.weapon;
+  // Rockets drawn at once, under temporary negative keys, until the server numbers them.
+  let unconfirmed: { key: number; at: number }[] = [];
+  let lastRocketKey = 0;
   const remoteSteps = new Map<string, { pos: Vec3; walked: number; dashing: boolean }>();
 
   function eyeOf(pos: Vec3, crouched: boolean): Vec3 {
     return [pos[0], pos[1] + (crouched ? PLAYER.crouchEyeHeight : PLAYER.standEyeHeight), pos[2]];
   }
 
+  /** How far a rocket can fly from `origin` along `direction` before it meets the map. */
+  function flight(origin: Vec3, direction: Vec3): number {
+    const end = shotEnd(map, origin, direction, []);
+    return Math.hypot(end[0] - origin[0], end[1] - origin[1], end[2] - origin[2]);
+  }
+
+  function tracerStyle(weapon: number, shooter: string) {
+    if (weapon !== RAILGUN) return undefined;
+    return { color: appearance(shooter).color, life: RAIL_TRAIL_S };
+  }
+
   function fire(cmd: InputCmd): void {
+    const weapon = prediction.weapon.current;
+    const spec = WEAPONS[weapon];
+    if (!spec) return;
     const origin = eyeOf(prediction.current.pos, prediction.current.crouched);
-    const direction = aimDirection(cmd.yaw, cmd.pitch);
-    const end = shotEnd(map, origin, direction, others);
-    // Start the tracer at the tip of the barrel as drawn on screen, not between the eyes.
-    const barrel = viewmodel.muzzle();
-    renderer.addTracer(renderer.screenToWorld(barrel.x, barrel.y, MUZZLE_DISTANCE), end);
+    if (spec.kind === 'projectile') {
+      const direction = aimDirection(cmd.yaw, cmd.pitch);
+      const key = --lastRocketKey;
+      unconfirmed.push({ key, at: performance.now() });
+      renderer.launchRocket(key, origin, direction, flight(origin, direction), ROCKET_SKIP);
+    } else {
+      // Start the tracers at the tip of the barrel as drawn on screen, not between the eyes.
+      const barrel = viewmodel.muzzle();
+      const muzzle = renderer.screenToWorld(barrel.x, barrel.y, MUZZLE_DISTANCE);
+      const style = tracerStyle(weapon, myId);
+      for (const direction of pelletDirections(cmd.yaw, cmd.pitch, spec.pellets, spec.spread)) {
+        renderer.addTracer(muzzle, shotEnd(map, origin, direction, others), style);
+      }
+    }
     viewmodel.fire();
     hud.fired();
-    audio.shot(null);
+    audio.shot(null, weapon);
   }
 
   function footsteps(): void {
@@ -503,6 +550,12 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     }));
     const renderTime = remotes.renderTime(seconds);
 
+    // The wheel goes round the weapons there is something to fire from. A weapon asked
+    // for but not usable is forgotten, so that the wheel starts from the one in hand.
+    const wheel = input.takeWheel();
+    if (wheel !== 0) input.weapon = nextWeapon(prediction.weapon, Math.sign(wheel));
+    else if (!usable(prediction.weapon, input.weapon)) input.weapon = prediction.weapon.current;
+
     const steps = running ? loop.advance(dt) : 0;
     for (let i = 0; i < steps; i++) {
       const cmd = input.command();
@@ -518,9 +571,11 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     }
     remoteFootsteps();
 
-    const reloading = prediction.weapon.reload > 0;
-    if (reloading && !wasReloading) audio.reload();
-    wasReloading = reloading;
+    if (prediction.weapon.current !== weaponShown) {
+      weaponShown = prediction.weapon.current;
+      viewmodel.setWeapon(weaponShown);
+      audio.weaponSwitch();
+    }
 
     const dead = !status.alive;
     const camera = view.update(
@@ -534,14 +589,12 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     );
     audio.setListener(camera.eye, input.yaw);
     renderer.render(camera, others, dt);
-    viewmodel.update(dt, stride, reloading || dead);
+    viewmodel.update(dt, stride, dead);
 
     hud.setHealth(status.hp);
-    hud.setAmmo(
-      prediction.weapon.ammo,
-      WEAPON.magazine,
-      reloading ? 1 - prediction.weapon.reload / WEAPON.reloadTicks : null,
-    );
+    hud.setArmor(status.armor);
+    hud.setWeapons(prediction.weapon);
+    hud.setQuad(status.quad);
     hud.setDeath(
       dead ? deathCause : null,
       COMBAT.respawnDelayS - (now - diedAt) / 1000,
@@ -590,7 +643,11 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
 
   return {
     handleSnapshot(snapshot: SnapshotMsg): void {
+      // A weapon just picked up goes straight into the hands.
+      const gained = snapshot.status.owned & ~status.owned;
+      if (gained !== 0) input.weapon = 31 - Math.clz32(gained);
       status = snapshot.status;
+      renderer.setItems(snapshot.items);
       remotes.push(snapshot.tick / SNAPSHOT_RATE, performance.now() / 1000, snapshot.players);
       view.nudge(prediction.reconcile(snapshot.you, snapshot.status, snapshot.ack));
     },
@@ -623,12 +680,42 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     },
     handleEvent(event: EventMsg): void {
       switch (event.e) {
-        case 'shot':
-          renderer.addTracer([event.from[0], event.from[1] - 0.14, event.from[2]], event.to);
-          audio.shot(event.from);
+        case 'shot': {
+          const from: Vec3 = [event.from[0], event.from[1] - 0.14, event.from[2]];
+          const style = tracerStyle(event.w, event.id);
+          for (const to of event.to) renderer.addTracer(from, to, style);
+          audio.shot(event.from, event.w);
           break;
+        }
+        case 'rocket': {
+          if (event.id === myId) {
+            const now = performance.now();
+            unconfirmed = unconfirmed.filter((rocket) => now - rocket.at < ROCKET_CONFIRM_MS);
+            const drawn = unconfirmed.shift();
+            if (drawn) {
+              renderer.bindRocket(drawn.key, event.n);
+              break;
+            }
+          } else {
+            audio.shot(event.from, ROCKET_LAUNCHER);
+          }
+          renderer.launchRocket(event.n, event.from, event.dir, flight(event.from, event.dir));
+          break;
+        }
+        case 'explode':
+          renderer.explode(event.n, event.pos);
+          audio.explosion(event.pos);
+          break;
+        case 'pickup': {
+          const item = map.items[event.item];
+          if (!item) break;
+          if (event.id === myId) hud.pickup(itemLabel(item.type));
+          audio.pickup(event.id === myId ? null : item.position, itemKind(item.type));
+          break;
+        }
         case 'hit':
-          if (event.by === myId) {
+          // A player's own rocket can hurt them too; that is not a hit to celebrate.
+          if (event.by === myId && event.target !== myId) {
             hud.hitMarker(event.head);
             audio.hitConfirm(event.head);
             const target = others.find((other) => other.id === event.target);
@@ -652,6 +739,15 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
           }
           break;
         case 'kill':
+          if (event.by === event.target) {
+            hud.addNotice(lookup(event.target), 'подорвался на своей ракете');
+            if (event.target === myId) {
+              deathCause = 'Вы подорвались на своей ракете';
+              diedAt = performance.now();
+            }
+            audio.death(others.find((other) => other.id === event.target)?.pos ?? null);
+            break;
+          }
           hud.addKill(
             lookup(event.by),
             lookup(event.target),
@@ -705,6 +801,8 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
       prediction = new Prediction(map, again.you, again.status);
       remotes = new RemoteInterpolator(INTERPOLATION_DELAY_S);
       status = again.status;
+      input.weapon = again.status.weapon;
+      unconfirmed = [];
       input.yaw = again.you.yaw;
       input.pitch = 0;
       view.reset();

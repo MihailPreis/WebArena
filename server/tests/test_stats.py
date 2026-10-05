@@ -13,6 +13,7 @@ from arena.db.players import Player
 from arena.game.map import load_map
 from arena.game.results import MatchResult
 from arena.game.room import RESULTS, MatchSettings, Room
+from arena.game.weapon import WEAPONS
 from arena.main import create_app
 from arena.net.protocol import PROTOCOL_VERSION
 from tests.conftest import FakeConn, auth
@@ -116,7 +117,7 @@ def test_shots_and_damage_are_counted_only_during_a_match() -> None:
     duel.shoot(pitch=0.02)
     duel.shoot(yaw=1.5)
     assert (duel.alice.shots, duel.alice.hits, duel.alice.headshots) == (3, 2, 1)
-    assert duel.alice.damage_dealt == duel.bob.damage_taken == 60
+    assert duel.alice.damage_dealt == duel.bob.damage_taken == 3 * WEAPONS[0].damage
 
 
 def test_match_is_saved_and_totals_accumulate(api: TestClient, db_path: Path) -> None:

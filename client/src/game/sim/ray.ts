@@ -1,13 +1,50 @@
 // Shot tracing for the client's own effects (where a tracer ends). The server decides
 // what was actually hit; see server/arena/game/combat.py.
+import constants from '@shared/constants.json';
 import { PLAYER } from './constants';
 import type { GameMap, Vec3 } from './map';
-import { WEAPON } from './weapon';
+
+export const WEAPON_RANGE = constants.combat.range;
 
 /** Unit vector the player looks along. Yaw 0 looks along -z; positive pitch looks up. */
 export function aimDirection(yaw: number, pitch: number): Vec3 {
   const horizontal = Math.cos(pitch);
   return [-Math.sin(yaw) * horizontal, Math.sin(pitch), -Math.cos(yaw) * horizontal];
+}
+
+/**
+ * Where each pellet of a shot flies. The pattern is fixed, not random: one pellet along
+ * the aim and the rest on two rings around it. Mirrors `pellet_directions` on the server.
+ */
+export function pelletDirections(
+  yaw: number,
+  pitch: number,
+  pellets: number,
+  spread: number,
+): Vec3[] {
+  const forward = aimDirection(yaw, pitch);
+  if (pellets <= 1) return [forward];
+  const sinYaw = Math.sin(yaw);
+  const cosYaw = Math.cos(yaw);
+  const right: Vec3 = [cosYaw, 0, -sinYaw];
+  const up: Vec3 = [
+    sinYaw * forward[1],
+    -sinYaw * forward[0] - cosYaw * forward[2],
+    cosYaw * forward[1],
+  ];
+  const directions = [forward];
+  for (let i = 1; i < pellets; i++) {
+    const radius = spread * (i % 2 === 1 ? 0.5 : 1);
+    const angle = (2 * Math.PI * i) / (pellets - 1);
+    const a = Math.cos(angle) * radius;
+    const b = Math.sin(angle) * radius;
+    const x = forward[0] + right[0] * a + up[0] * b;
+    const y = forward[1] + right[1] * a + up[1] * b;
+    const z = forward[2] + right[2] * a + up[2] * b;
+    const length = Math.sqrt(x * x + y * y + z * z);
+    directions.push([x / length, y / length, z / length]);
+  }
+  return directions;
 }
 
 /** Distance along the ray to where it enters the box, or null if it misses. */
@@ -37,7 +74,7 @@ export function shotEnd(
   direction: Vec3,
   players: readonly { pos: Vec3; crouched: boolean }[],
 ): Vec3 {
-  let nearest = WEAPON.range;
+  let nearest = WEAPON_RANGE;
   for (const block of map.blocks) {
     const distance = rayBox(origin, direction, block.min, block.max);
     if (distance !== null && distance < nearest) nearest = distance;

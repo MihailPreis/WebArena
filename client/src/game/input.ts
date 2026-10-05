@@ -13,16 +13,20 @@ const GAME_KEYS = new Set([
   'ShiftLeft',
   'ShiftRight',
   'KeyC',
-  'KeyR',
   'Tab',
 ]);
+// Digit1 picks the first weapon, and so on.
+const WEAPON_KEY = /^Digit([1-9])$/;
 
 /** Keyboard and mouse state, active only while the pointer is locked to `target`. */
 export class Input {
   yaw = 0;
   pitch = 0;
   private readonly keys = new Set<string>();
+  /** Index of the weapon the player asked for, with a digit key or by the caller. */
+  weapon = 0;
   private firing = false;
+  private wheel = 0;
   private suspended = false;
 
   constructor(
@@ -45,9 +49,15 @@ export class Input {
       this.pitch = Math.min(Math.max(this.pitch, -PITCH_LIMIT), PITCH_LIMIT);
     });
     window.addEventListener('keydown', (event) => {
-      if (!this.locked || this.suspended || !GAME_KEYS.has(event.code)) return;
+      if (!this.locked || this.suspended) return;
+      const digit = WEAPON_KEY.exec(event.code);
+      if (digit) this.weapon = Number(digit[1]) - 1;
+      if (!GAME_KEYS.has(event.code)) return;
       event.preventDefault();
       this.keys.add(event.code);
+    });
+    document.addEventListener('wheel', (event) => {
+      if (this.locked && !this.suspended) this.wheel += Math.sign(event.deltaY);
     });
     window.addEventListener('keyup', (event) => this.keys.delete(event.code));
     window.addEventListener('blur', () => this.release());
@@ -78,6 +88,13 @@ export class Input {
     this.release();
   }
 
+  /** Notches the mouse wheel has turned since the last call; positive is towards the player. */
+  takeWheel(): number {
+    const turned = this.wheel;
+    this.wheel = 0;
+    return turned;
+  }
+
   private release(): void {
     this.keys.clear();
     this.firing = false;
@@ -95,7 +112,7 @@ export class Input {
       yaw: this.yaw,
       pitch: this.pitch,
       fire: this.firing,
-      reload: this.keys.has('KeyR'),
+      weapon: this.weapon,
     };
   }
 }

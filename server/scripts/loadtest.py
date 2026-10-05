@@ -68,6 +68,8 @@ async def bot(ws_base: str, code: str, token: str, seconds: float, intervals: li
         seq = 0
         yaw = rng.uniform(-math.pi, math.pi)
         turn = rng.uniform(-0.05, 0.05)
+        # Each bot prefers one weapon and uses it once it has walked over it.
+        weapon = rng.randrange(len(CONSTANTS["weapons"]))
         try:
             while (elapsed := time.perf_counter() - started) < seconds:
                 # Catch up to real time, as a browser does after a slow frame.
@@ -88,7 +90,7 @@ async def bot(ws_base: str, code: str, token: str, seconds: float, intervals: li
                                 "yaw": yaw,
                                 "pitch": 0,
                                 "fire": seq % 3 == 0,
-                                "reload": False,
+                                "w": weapon,
                                 "rt": max(server_time - 0.1, 0),
                             }
                         )

@@ -29,6 +29,9 @@ class GameMode(Protocol):
     def record_kill(self, killer: Member, victim: Member) -> None:
         """Updates the score after a kill."""
 
+    def record_suicide(self, victim: Member) -> None:
+        """Updates the score after a player died by their own hand."""
+
     def is_won(self, members: Sequence[Member], settings: MatchSettings) -> bool:
         """True once the score ends the match. The time limit is the room's concern."""
 
@@ -65,6 +68,9 @@ class Deathmatch:
 
     def record_kill(self, killer: Member, victim: Member) -> None:
         killer.kills += 1
+        victim.deaths += 1
+
+    def record_suicide(self, victim: Member) -> None:
         victim.deaths += 1
 
     def is_won(self, members: Sequence[Member], settings: MatchSettings) -> bool:
@@ -107,6 +113,9 @@ class TeamDeathmatch:
 
     def record_kill(self, killer: Member, victim: Member) -> None:
         killer.kills += 1
+        victim.deaths += 1
+
+    def record_suicide(self, victim: Member) -> None:
         victim.deaths += 1
 
     def team_scores(self, members: Sequence[Member]) -> dict[str, int]:

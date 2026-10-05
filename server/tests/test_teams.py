@@ -8,7 +8,6 @@ from arena.db.players import Player
 from arena.game.map import load_map
 from arena.game.results import MatchResult
 from arena.game.room import (
-    DAMAGE,
     MATCH,
     MAX_HEALTH,
     RESPAWN_DELAY_S,
@@ -20,6 +19,7 @@ from arena.game.room import (
     Member,
     Room,
 )
+from arena.game.weapon import WEAPONS
 from arena.net.protocol import PROTOCOL_VERSION
 from tests.conftest import FakeConn, auth
 from tests.test_combat import RANGE, cmd, standing
@@ -81,7 +81,7 @@ def test_teammates_cannot_hurt_each_other_but_enemies_can() -> None:
     room.receive_input(shooter, 0, cmd(pitch=-0.1, fire=True), room.time)
     room.tick()
     assert mate.hp == MAX_HEALTH
-    assert enemy.hp == MAX_HEALTH - DAMAGE
+    assert enemy.hp == MAX_HEALTH - WEAPONS[0].damage
 
 
 def test_team_score_decides_the_match() -> None:

@@ -39,11 +39,13 @@
           <div id="match-right" class="side"><b></b><span class="label"></span></div>
         </div>
         <div id="network" hidden></div>
+        <div id="quad" hidden><span>Quad Damage</span><b></b></div>
       </div>
 
       <div id="debug"></div>
       <ul id="killfeed"></ul>
       <div id="hint" hidden></div>
+      <div id="pickup" hidden></div>
       <div id="chat">
         <ul id="chat-log"></ul>
         <input
@@ -70,6 +72,10 @@
             </div>
             <div id="health"></div>
           </div>
+          <div class="armor-row" title="Броня">
+            <div id="armor-bar"><div id="armor-fill"></div></div>
+            <div id="armor"></div>
+          </div>
           <div id="dash" title="Рывок">
             <kbd>Shift</kbd>
             <span>рывок</span>
@@ -80,13 +86,12 @@
 
       <div id="weapon-card" class="card">
         <div class="card-body">
-          <div id="weapon-name">Винтовка</div>
+          <div id="weapon-name"></div>
           <div class="ammo-row" title="Патроны">
             <span id="ammo"></span>
             <span id="ammo-max"></span>
           </div>
-          <div id="ammo-cells"></div>
-          <div id="reload-hint"><kbd>R</kbd><span></span></div>
+          <div id="weapon-slots" title="Оружие"></div>
         </div>
       </div>
 
@@ -169,8 +174,8 @@
                 <dd>огонь</dd>
               </div>
               <div>
-                <dt>R</dt>
-                <dd>перезарядка</dd>
+                <dt>1–4, колесо</dt>
+                <dd>смена оружия</dd>
               </div>
               <div>
                 <dt>Пробел</dt>

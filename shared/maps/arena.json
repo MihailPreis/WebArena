@@ -53,5 +53,25 @@
     { "position": [0, 0, 16], "yawDeg": 0 },
     { "position": [-18, 0, 0], "yawDeg": -90 },
     { "position": [18, 0, 0], "yawDeg": 90 }
+  ],
+  "items": [
+    { "type": "quad", "position": [0, 3, 0] },
+    { "type": "rocketlauncher", "position": [12, 1.8, -11] },
+    { "type": "armor_heavy", "position": [12, 0, -11] },
+    { "type": "railgun", "position": [-16, 0, -8] },
+    { "type": "shotgun", "position": [8, 0, 16] },
+    { "type": "shotgun", "position": [-3, 0, -13] },
+    { "type": "armor", "position": [-14, 0, 10] },
+    { "type": "health_large", "position": [12, 2, 8] },
+    { "type": "health_large", "position": [-6, 2, 14] },
+    { "type": "health", "position": [0, 0, 10] },
+    { "type": "health", "position": [10, 0, 0] },
+    { "type": "health", "position": [-8, 0, -6] },
+    { "type": "health", "position": [0, 0, -7] },
+    { "type": "bullets", "position": [-18, 0, 10] },
+    { "type": "bullets", "position": [17, 0, -6] },
+    { "type": "shells", "position": [3, 0, 12] },
+    { "type": "rockets", "position": [17, 0, 5] },
+    { "type": "slugs", "position": [-17, 0, -10] }
   ]
 }

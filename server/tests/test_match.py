@@ -14,6 +14,7 @@ from arena.game.room import (
     Member,
     Room,
 )
+from arena.game.weapon import WeaponState
 from tests.conftest import FakeConn
 from tests.test_combat import RANGE, cmd, standing
 
@@ -82,7 +83,7 @@ def test_kill_limit_ends_the_match_and_freezes_players() -> None:
     room.tick()
     assert alice.ack == 0
     assert alice.state == before
-    assert alice.weapon.ammo == 20
+    assert alice.weapon == WeaponState()
 
 
 def test_time_limit_ends_the_match() -> None:
