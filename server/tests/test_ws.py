@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from arena.net.protocol import PROTOCOL_VERSION, CloseCode
+from arena.net.protocol import CHAT_MAX_LENGTH, PROTOCOL_VERSION, CloseCode
 from tests.conftest import auth
 
 
@@ -96,6 +96,36 @@ def test_players_see_each_other(api: TestClient) -> None:
             assert [p["id"] for p in receive(second, "snapshot")["players"]] == [host["id"]]
         left = receive_event(first, "leave")
         assert left == {"t": "event", "e": "leave", "id": guest["id"]}
+
+
+def test_chat_is_delivered_to_the_room(api: TestClient) -> None:
+    host, guest = new_player(api), new_player(api)
+    code = new_room(api, host["token"])
+    with api.websocket_connect(f"/ws/{code}") as first:
+        first.send_json(hello(host["token"]))
+        receive(first, "welcome")
+        with api.websocket_connect(f"/ws/{code}") as second:
+            second.send_json(hello(guest["token"]))
+            receive(second, "welcome")
+            second.send_json({"t": "chat", "text": "привет"})
+            expected = {"t": "event", "e": "chat", "id": guest["id"], "text": "привет"}
+            assert receive_event(first, "chat") == expected
+            assert receive_event(second, "chat") == expected
+
+
+def test_oversized_chat_is_a_protocol_error(api: TestClient) -> None:
+    host = new_player(api)
+    code = new_room(api, host["token"])
+    with (
+        pytest.raises(WebSocketDisconnect) as closed,
+        api.websocket_connect(f"/ws/{code}") as ws,
+    ):
+        ws.send_json(hello(host["token"]))
+        receive(ws, "welcome")
+        ws.send_json({"t": "chat", "text": "x" * (CHAT_MAX_LENGTH + 1)})
+        for _ in range(200):
+            ws.receive_json()
+    assert closed.value.code == CloseCode.BAD_MESSAGE
 
 
 def test_connection_is_refused_with_a_reason(api: TestClient) -> None:

@@ -7,6 +7,7 @@ import { roomCodeFromPath } from '../shared/roomCode';
 import { describeSettings, modeName, TEAM_COLORS, TEAM_NAMES, type Team } from '../shared/roomText';
 import { ensureSession, type Session } from '../shared/session';
 import { GameAudio } from './audio';
+import { Chat } from './chat';
 import { Hud, type MatchSide, type NamedPlayer, type TeammateTag } from './hud';
 import { Input } from './input';
 import { Menu } from './menu';
@@ -316,11 +317,30 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
         showRoomInfo();
       } else {
         unlockedAt = performance.now();
+        chat.close();
       }
       refreshMenu();
     },
   );
   input.yaw = welcome.you.yaw;
+  const chat = new Chat(
+    (text) => connection.sendChat(text),
+    (open) => input.suspend(open),
+  );
+  // Enter opens the chat field, Enter again sends the line. Esc cannot be used to cancel:
+  // the browser takes it to release the mouse, which opens the menu and closes the chat.
+  window.addEventListener('keydown', (event) => {
+    if (chat.isOpen) {
+      // Tab would move the focus out of the field.
+      if (event.code === 'Tab') event.preventDefault();
+      if (event.key !== 'Enter' || event.repeat || event.isComposing) return;
+      event.preventDefault();
+      chat.submit();
+    } else if (event.key === 'Enter' && !event.repeat && running && input.locked) {
+      event.preventDefault();
+      chat.open();
+    }
+  });
   const lock = () => {
     if (!running) return;
     audio.resume();
@@ -661,6 +681,9 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
           }
           break;
         }
+        case 'chat':
+          chat.add(lookup(event.id), event.text);
+          break;
         case 'spawn':
           if (event.id === myId) {
             input.yaw = event.yaw;
@@ -673,6 +696,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     /** Holds the game still while the connection is being restored. */
     pause(reason: string): void {
       running = false;
+      chat.close();
       hud.setNetworkStatus(reason);
     },
     /** Continues on a new connection: the server has put the player back into the room. */
@@ -690,6 +714,7 @@ function createGame({ welcome, connection: firstConnection, roster, self }: Game
     /** Freezes the game for good; the last frame stays on screen. */
     stop(): void {
       running = false;
+      chat.close();
       dismissed = false;
       refreshMenu();
       play.hidden = true;

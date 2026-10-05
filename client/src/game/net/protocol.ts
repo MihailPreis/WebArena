@@ -82,7 +82,9 @@ export type EventMsg =
   | { t: 'event'; e: 'kill'; by: string; target: string; head: boolean }
   | { t: 'event'; e: 'spawn'; id: string; yaw: number }
   /** A player switched sides. */
-  | { t: 'event'; e: 'team'; id: string; team: Team };
+  | { t: 'event'; e: 'team'; id: string; team: Team }
+  /** A line of chat; everyone in the room gets it, the sender included. */
+  | { t: 'event'; e: 'chat'; id: string; text: string };
 
 export interface ScoreRow extends PublicPlayer {
   kills: number;
@@ -135,7 +137,8 @@ export type ClientMessage =
     }
   | { t: 'ping'; id: number; rtt: number }
   | { t: 'settings'; mode: string; killLimit: number; timeLimitMin: number }
-  | { t: 'team'; team: Team };
+  | { t: 'team'; team: Team }
+  | { t: 'chat'; text: string };
 
 export function inputMessage(seq: number, cmd: InputCmd, renderTime: number): ClientMessage {
   return {

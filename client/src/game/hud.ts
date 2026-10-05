@@ -52,7 +52,7 @@ function element<T extends HTMLElement>(id: string): T {
   return found as T;
 }
 
-function named(player: NamedPlayer): HTMLSpanElement {
+export function named(player: NamedPlayer): HTMLSpanElement {
   const span = document.createElement('span');
   span.className = 'name';
   span.textContent = player.name;

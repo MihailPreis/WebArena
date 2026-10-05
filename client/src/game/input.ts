@@ -23,6 +23,7 @@ export class Input {
   pitch = 0;
   private readonly keys = new Set<string>();
   private firing = false;
+  private suspended = false;
 
   constructor(
     private readonly target: HTMLElement,
@@ -44,14 +45,14 @@ export class Input {
       this.pitch = Math.min(Math.max(this.pitch, -PITCH_LIMIT), PITCH_LIMIT);
     });
     window.addEventListener('keydown', (event) => {
-      if (!this.locked || !GAME_KEYS.has(event.code)) return;
+      if (!this.locked || this.suspended || !GAME_KEYS.has(event.code)) return;
       event.preventDefault();
       this.keys.add(event.code);
     });
     window.addEventListener('keyup', (event) => this.keys.delete(event.code));
     window.addEventListener('blur', () => this.release());
     document.addEventListener('mousedown', (event) => {
-      if (this.locked && event.button === 0) this.firing = true;
+      if (this.locked && !this.suspended && event.button === 0) this.firing = true;
     });
     document.addEventListener('mouseup', (event) => {
       if (event.button === 0) this.firing = false;
@@ -69,6 +70,12 @@ export class Input {
 
   isDown(code: string): boolean {
     return this.keys.has(code);
+  }
+
+  /** While the player is typing, e.g. in the chat, keys and clicks are not game input. */
+  suspend(on: boolean): void {
+    this.suspended = on;
+    this.release();
   }
 
   private release(): void {

@@ -59,7 +59,7 @@
     }
   },
   "net": {
-    "protocolVersion": 5,
+    "protocolVersion": 6,
     "snapshotRate": 30,
     "interpolationDelayMs": 100,
     "maxInputBurst": 20,
@@ -80,6 +80,9 @@
     "magazine": 20,
     "reloadTicks": 90,
     "range": 100
+  },
+  "chat": {
+    "maxLength": 120
   },
   "match": {
     "minPlayers": 2,

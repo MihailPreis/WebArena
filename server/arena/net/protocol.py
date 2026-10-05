@@ -10,6 +10,7 @@ from arena.game.movement import InputCmd, PlayerState
 from arena.shared import CONSTANTS, ROOM
 
 PROTOCOL_VERSION: int = CONSTANTS["net"]["protocolVersion"]
+CHAT_MAX_LENGTH: int = CONSTANTS["chat"]["maxLength"]
 
 
 class CloseCode(IntEnum):
@@ -89,8 +90,19 @@ class TeamMsg(_ClientModel):
     team: Literal["blue", "red"]
 
 
-ClientMessage = Annotated[InputMsg | PingMsg | SettingsMsg | TeamMsg, Field(discriminator="t")]
-CLIENT_MESSAGE: TypeAdapter[InputMsg | PingMsg | SettingsMsg | TeamMsg] = TypeAdapter(ClientMessage)
+class ChatMsg(_ClientModel):
+    """A line for everyone in the room. The room cleans it up before passing it on."""
+
+    t: Literal["chat"]
+    text: str = Field(min_length=1, max_length=CHAT_MAX_LENGTH)
+
+
+ClientMessage = Annotated[
+    InputMsg | PingMsg | SettingsMsg | TeamMsg | ChatMsg, Field(discriminator="t")
+]
+CLIENT_MESSAGE: TypeAdapter[InputMsg | PingMsg | SettingsMsg | TeamMsg | ChatMsg] = TypeAdapter(
+    ClientMessage
+)
 
 
 def encode(message: dict[str, Any]) -> str:

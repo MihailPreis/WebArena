@@ -5,7 +5,16 @@ import pytest
 from arena.db.players import Player
 from arena.game.map import load_map
 from arena.game.movement import InputCmd
-from arena.game.room import INPUTS_PER_TICK, MAX_INPUT_BURST, MatchSettings, Room, RoomFull
+from arena.game.room import (
+    CHAT_BURST,
+    CHAT_PER_SECOND,
+    INPUTS_PER_TICK,
+    MAX_INPUT_BURST,
+    SNAPSHOT_INTERVAL,
+    MatchSettings,
+    Room,
+    RoomFull,
+)
 from arena.net.protocol import CloseCode
 from tests.conftest import FakeConn
 
@@ -160,3 +169,50 @@ def test_falling_out_of_the_world_respawns() -> None:
     room.receive_input(member, 0, IDLE, 0.0)
     room.tick()
     assert member.state.pos in [spawn.position for spawn in ARENA.spawns]
+
+
+def test_chat_reaches_everyone_as_one_clean_line() -> None:
+    room = make_room()
+    alice, bob = FakeConn(), FakeConn()
+    member = room.join(ALICE, alice)
+    room.join(BOB, bob)
+
+    room.chat(member, "  gg\n\twp \x00\u202e<b>all</b>  ")
+    expected = {"t": "event", "e": "chat", "id": "a1", "text": "gg wp <b>all</b>"}
+    assert alice.last("event") == expected
+    assert bob.last("event") == expected
+
+
+def test_blank_chat_lines_are_dropped() -> None:
+    room = make_room()
+    alice = FakeConn()
+    member = room.join(ALICE, alice)
+    sent = len(alice.sent)
+    room.chat(member, " \n\x00 ")
+    assert len(alice.sent) == sent
+
+
+def test_chat_is_rate_limited_per_player() -> None:
+    room = make_room()
+    alice, bob = FakeConn(), FakeConn()
+    member = room.join(ALICE, alice)
+    other = room.join(BOB, bob)
+
+    def lines() -> list[str]:
+        return [m["text"] for m in bob.sent if m.get("e") == "chat"]
+
+    for i in range(CHAT_BURST + 3):
+        room.chat(member, f"spam {i}")
+    assert lines() == [f"spam {i}" for i in range(CHAT_BURST)]
+
+    # One player's flood does not silence another, and reconnecting does not lift the limit.
+    room.chat(other, "hello")
+    room.leave(member, alice)
+    member = room.join(ALICE, alice)
+    room.chat(member, "again")
+    assert lines()[CHAT_BURST:] == ["hello"]
+
+    for _ in range(round(1 / CHAT_PER_SECOND / SNAPSHOT_INTERVAL) + 1):
+        room.tick()
+    room.chat(member, "later")
+    assert lines()[-1] == "later"

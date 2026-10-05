@@ -44,6 +44,18 @@
       <div id="debug"></div>
       <ul id="killfeed"></ul>
       <div id="hint" hidden></div>
+      <div id="chat">
+        <ul id="chat-log"></ul>
+        <input
+          id="chat-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="Сообщение всем · Enter — отправить"
+          aria-label="Сообщение в чат"
+          hidden
+        />
+      </div>
 
       <div id="player-card" class="card">
         <div class="card-body">
@@ -107,7 +119,7 @@
           <button id="play" class="button primary" type="button">Играть</button>
           <button id="copy-link" class="button" type="button" hidden>Пригласить по ссылке</button>
           <a class="home-link" href="/">Выйти на главную</a>
-          <p class="actions-note">Esc — закрыть меню · Tab — таблица</p>
+          <p class="actions-note">Esc — закрыть меню · Tab — таблица · Enter — чат</p>
         </div>
 
         <div class="panels">
@@ -175,6 +187,10 @@
               <div>
                 <dt>Tab</dt>
                 <dd>таблица</dd>
+              </div>
+              <div>
+                <dt>Enter</dt>
+                <dd>чат</dd>
               </div>
               <div>
                 <dt>Esc</dt>

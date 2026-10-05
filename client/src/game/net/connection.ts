@@ -87,6 +87,11 @@ export class Connection {
     this.send({ t: 'team', team });
   }
 
+  /** Says a line to the whole room; the server cleans it and limits how often. */
+  sendChat(text: string): void {
+    this.send({ t: 'chat', text });
+  }
+
   private send(message: ClientMessage): void {
     if (this.open) this.socket.send(JSON.stringify(message));
   }

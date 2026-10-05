@@ -14,6 +14,7 @@ from arena.game.rooms import RoomRegistry
 from arena.net.protocol import (
     CLIENT_MESSAGE,
     PROTOCOL_VERSION,
+    ChatMsg,
     CloseCode,
     Hello,
     InputMsg,
@@ -101,6 +102,8 @@ async def _read(websocket: WebSocket, room: Room, member: Member, conn: WsConnec
             conn.send(encode({"t": "pong", "id": message.id}))
         elif isinstance(message, SettingsMsg):
             room.change_settings(member, message.mode, message.killLimit, message.timeLimitMin)
+        elif isinstance(message, ChatMsg):
+            room.chat(member, message.text)
         else:
             room.change_team(member, message.team)
 

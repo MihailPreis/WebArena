@@ -4,6 +4,7 @@ import logging
 import math
 import random
 import time
+import unicodedata
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -24,6 +25,7 @@ from arena.game.movement import (
 from arena.game.results import MatchResult, PlayerResult
 from arena.game.weapon import WeaponState, step_weapon
 from arena.net.protocol import PROTOCOL_VERSION, CloseCode, encode, state_json
+from arena.ratelimit import RateLimiter
 from arena.shared import CONSTANTS
 
 log = logging.getLogger("arena.room")
@@ -51,6 +53,10 @@ HEAD_MULTIPLIER: float = _WEAPON["headMultiplier"]
 MIN_PLAYERS: int = CONSTANTS["match"]["minPlayers"]
 RESULTS_S: float = CONSTANTS["match"]["resultsS"]
 ROOM_STATE_INTERVAL_TICKS: int = round(_NET["roomStateIntervalS"] * _NET["snapshotRate"])
+
+# A player may say a few lines at once, then one every couple of seconds.
+CHAT_BURST = 4
+CHAT_PER_SECOND = 0.5
 
 # Room states. Scores only count during a match.
 WAITING = "waiting"  # Fewer players than a match needs; everyone can roam and shoot.
@@ -151,6 +157,8 @@ class Room:
         # Set while nobody is connected; the registry drops the room once this is old enough.
         self.empty_since: float | None = clock()
         self._clock = clock
+        # Keyed by player and run on game time, so reconnecting does not refill it.
+        self._chat_limit = RateLimiter(CHAT_PER_SECOND, CHAT_BURST, clock=lambda: self.time)
         self._task: asyncio.Task[None] | None = None
 
     @property
@@ -274,6 +282,13 @@ class Room:
         log.info(
             "team_changed", extra={"room": self.code, "player": member.player.id, "team": team}
         )
+
+    def chat(self, member: Member, text: str) -> None:
+        """Passes a player's line on to everyone in the room, the sender included."""
+        text = _clean_chat(text)
+        if not text or not self._chat_limit.allow(member.player.id):
+            return
+        self._broadcast({"t": "event", "e": "chat", "id": member.player.id, "text": text})
 
     def receive_input(self, member: Member, seq: int, cmd: InputCmd, render_time: float) -> None:
         if seq <= member.last_seq or len(member.inputs) >= MAX_QUEUED_INPUTS:
@@ -617,6 +632,16 @@ def _position_at(member: Member, time: float) -> tuple[Vec3, bool]:
             )
             return pos, (c0 if alpha < 0.5 else c1)
     return history[0][1], history[0][2]
+
+
+def _clean_chat(text: str) -> str:
+    """One line of printable text: no control characters, runs of whitespace as one space."""
+    printable = "".join(
+        " " if char.isspace() else char
+        for char in text
+        if char.isspace() or not unicodedata.category(char).startswith("C")
+    )
+    return " ".join(printable.split())
 
 
 def _public(member: Member) -> dict[str, str | None]:
