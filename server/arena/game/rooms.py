@@ -5,6 +5,7 @@ import string
 import time
 from collections.abc import Callable
 
+from arena.db.players import Player
 from arena.game.map import load_map
 from arena.game.results import MatchResult
 from arena.game.room import MatchSettings, Room
@@ -62,6 +63,11 @@ class RoomRegistry:
             del self._rooms[code]
             return None
         return room
+
+    def update_player(self, player: Player) -> None:
+        """Passes a changed name or colour on to the rooms the player is in."""
+        for room in self._rooms.values():
+            room.update_player(player)
 
     def metrics(self) -> dict[str, float]:
         """Current load, for the /metrics endpoint."""

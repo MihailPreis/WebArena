@@ -8,15 +8,14 @@ import {
   getPlayerStats,
   getRoom,
   isRoomFull,
-  updateMe,
   type LeaderboardKind,
-  type Profile,
 } from '../shared/api';
+import { setupProfileEditor } from '../shared/profileEditor';
 import { isRoomCode } from '../shared/roomCode';
 import { availableMaps, mapName, modeName } from '../shared/roomText';
 import { ensureSession, type Session } from '../shared/session';
 
-const { profile: PROFILE, room: ROOM } = constants;
+const { room: ROOM } = constants;
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -54,70 +53,15 @@ for (const map of availableMaps()) mapSelect.add(new Option(mapName(map), map));
 const killLimit = setupLimit('kill-limit', ROOM.killLimit);
 const timeLimit = setupLimit('time-limit', ROOM.timeLimitMin);
 const maxPlayers = setupLimit('max-players', ROOM.maxPlayers);
-nameInput.maxLength = PROFILE.nameMaxLength;
 
 function setupProfile(session: Session): void {
-  let profile = session.profile;
-
-  const customColor = document.createElement('input');
-  customColor.type = 'color';
-  customColor.id = 'custom-color';
-  customColor.title = 'Свой цвет';
-  customColor.setAttribute('aria-label', 'Свой цвет');
-
-  const swatches = PROFILE.colors.map((color) => {
-    const swatch = document.createElement('button');
-    swatch.type = 'button';
-    swatch.className = 'swatch';
-    swatch.style.background = color;
-    swatch.setAttribute('aria-label', `Цвет ${color}`);
-    swatch.addEventListener('click', () => void save({ color }));
-    colors.append(swatch);
-    return { color, swatch };
+  setupProfileEditor({
+    session,
+    nameInput,
+    colors,
+    message: profileMessage,
+    serverDown: SERVER_DOWN,
   });
-  colors.append(customColor);
-
-  function show(next: Profile): void {
-    profile = next;
-    nameInput.value = next.name;
-    nameInput.style.color = next.color;
-    customColor.value = next.color;
-    for (const { color, swatch } of swatches) {
-      swatch.setAttribute('aria-pressed', String(color === next.color));
-    }
-  }
-
-  async function save(update: { name?: string; color?: string }): Promise<void> {
-    profileMessage.className = 'message';
-    try {
-      show(await updateMe(session.token, update));
-      profileMessage.textContent = 'Сохранено';
-      profileMessage.classList.add('ok');
-    } catch (error) {
-      show(profile);
-      if (error instanceof ApiError && error.status === 422) {
-        profileMessage.textContent =
-          update.color !== undefined
-            ? 'Цвет слишком тёмный — выберите светлее.'
-            : `Имя: от 1 до ${PROFILE.nameMaxLength} символов.`;
-      } else {
-        profileMessage.textContent = SERVER_DOWN;
-      }
-    }
-  }
-
-  nameInput.addEventListener('change', () => {
-    const name = nameInput.value.trim();
-    if (name === profile.name) show(profile);
-    else void save({ name });
-  });
-  nameInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') nameInput.blur();
-  });
-  customColor.addEventListener('change', () => void save({ color: customColor.value }));
-
-  show(profile);
-  nameInput.disabled = false;
 }
 
 function setupRooms(session: Session): void {

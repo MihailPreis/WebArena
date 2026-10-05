@@ -316,6 +316,14 @@ class Room:
         )
         self._send_room_state()
 
+    def update_player(self, player: Player) -> None:
+        """Shows a renamed or recoloured player to the room straight away."""
+        member = self.members.get(player.id)
+        if member is None or member.player == player:
+            return
+        member.player = player
+        self._send_room_state()
+
     def change_team(self, member: Member, team: str) -> None:
         """Moves a player to the other side. During a match this costs a life."""
         if member.team not in TEAMS or team not in TEAMS or team == member.team:

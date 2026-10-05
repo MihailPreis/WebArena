@@ -2,7 +2,7 @@ import secrets
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from arena.api.deps import CurrentPlayer, Db, rate_limited
+from arena.api.deps import CurrentPlayer, Db, Rooms, rate_limited
 from arena.api.models import PlayerCreated, PlayerOut, PlayerStatsOut, PlayerUpdate
 from arena.db import players, stats
 from arena.shared import PROFILE
@@ -26,8 +26,10 @@ async def get_me(db: Db, player: CurrentPlayer) -> PlayerOut:
 
 
 @router.patch("/me")
-async def update_me(db: Db, player: CurrentPlayer, update: PlayerUpdate) -> PlayerOut:
+async def update_me(db: Db, rooms: Rooms, player: CurrentPlayer, update: PlayerUpdate) -> PlayerOut:
     updated = await players.update_player(db, player, update.name, update.color)
+    # A player can change this from inside a room; the others see it at once.
+    rooms.update_player(updated)
     return PlayerOut(id=updated.id, name=updated.name, color=updated.color)
 
 

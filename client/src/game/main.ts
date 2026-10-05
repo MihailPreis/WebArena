@@ -12,6 +12,7 @@ import {
   TEAM_NAMES,
   type Team,
 } from '../shared/roomText';
+import { setupProfileEditor } from '../shared/profileEditor';
 import { ensureSession, type Session } from '../shared/session';
 import { GameAudio } from './audio';
 import { Chat } from './chat';
@@ -134,6 +135,21 @@ async function enter(): Promise<void> {
   roomSettings = room.settings;
   showRoomInfo();
   element('player').textContent = session.profile.name;
+  setupProfileEditor({
+    session,
+    nameInput: element<HTMLInputElement>('name'),
+    colors: element('colors'),
+    message: element('profile-message'),
+    serverDown: 'Сервер недоступен. Попробуйте ещё раз.',
+    onChange: showProfile,
+  });
+
+  // The game reads the name and the colour from this object, so it is updated in place.
+  function showProfile(profile: { name: string; color: string }): void {
+    session.profile.name = profile.name;
+    session.profile.color = profile.color;
+    element('player').textContent = profile.name;
+  }
 
   const roster = new Map<string, PublicPlayer>();
   let game: ReturnType<typeof createGame> | null = null;
@@ -175,7 +191,8 @@ async function enter(): Promise<void> {
         showRoomInfo();
         // The table also lists players who joined before this client did.
         for (const row of state.players) {
-          if (row.online && row.id !== session.profile.id) roster.set(row.id, row);
+          if (row.id === session.profile.id) showProfile(row);
+          else if (row.online) roster.set(row.id, row);
         }
         pendingRoomState = state;
         game?.handleRoomState(state);

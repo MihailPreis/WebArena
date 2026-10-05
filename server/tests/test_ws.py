@@ -98,6 +98,25 @@ def test_players_see_each_other(api: TestClient) -> None:
         assert left == {"t": "event", "e": "leave", "id": guest["id"]}
 
 
+def test_profile_change_reaches_the_room(api: TestClient) -> None:
+    host, guest = new_player(api), new_player(api)
+    code = new_room(api, host["token"])
+    with api.websocket_connect(f"/ws/{code}") as first:
+        first.send_json(hello(host["token"]))
+        receive(first, "welcome")
+        with api.websocket_connect(f"/ws/{code}") as second:
+            second.send_json(hello(guest["token"]))
+            receive(second, "welcome")
+            update = {"name": "Renamed", "color": "#ffaa00"}
+            api.patch("/api/players/me", headers=auth(guest["token"]), json=update)
+            for _ in range(10):
+                rows = {row["id"]: row for row in receive(first, "room")["players"]}
+                if rows.get(guest["id"], {}).get("name") == "Renamed":
+                    break
+            assert rows[guest["id"]]["color"] == "#ffaa00"
+            assert rows[host["id"]]["name"] == host["name"]
+
+
 def test_chat_is_delivered_to_the_room(api: TestClient) -> None:
     host, guest = new_player(api), new_player(api)
     code = new_room(api, host["token"])
